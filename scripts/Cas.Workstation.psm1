@@ -577,6 +577,14 @@ function New-CasClientConfigs {
     $runtimeConfig | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $runtimeTarget -Encoding UTF8
 }
 
+function Test-CasManagedDirectory {
+    param([Parameter(Mandatory = $true)][string]$Path, [pscustomobject]$Manifest = (Get-CasManifest))
+    $safePath = Assert-CasSafeManagedPath -Path $Path
+    $markerPath = Join-Path $safePath ".cas-managed.json"
+    if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) { return $false }
+    try { $marker = Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json } catch { return $false }
+    $marker.bundleId -eq $Manifest.bundleId -and (Get-CasFullPath -Path $marker.managedPath) -eq $safePath
+}
 function Start-CasRuntime {
     param(
         [string]$Profile = "full",
