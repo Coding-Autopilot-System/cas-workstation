@@ -18,8 +18,8 @@ jobs:
       - name: Install validation modules
         shell: pwsh
         run: |
-          Install-Module Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck
-          Install-Module PSScriptAnalyzer -RequiredVersion 1.24.0 -Force
+          Install-Module Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck -Scope CurrentUser
+          Install-Module PSScriptAnalyzer -RequiredVersion 1.24.0 -Force -Scope CurrentUser
       - name: Validate contracts and static quality
         shell: pwsh
         run: |
@@ -31,7 +31,9 @@ jobs:
         run: Invoke-Pester -Path tests -CI
       - name: Run Pester on Windows PowerShell 5.1
         shell: powershell
-        run: Invoke-Pester -Path tests -CI
+        run: |
+          Install-Module Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck -Scope CurrentUser
+          Invoke-Pester -Path tests -CI
       - name: Validate doctor output
         shell: pwsh
         run: |
