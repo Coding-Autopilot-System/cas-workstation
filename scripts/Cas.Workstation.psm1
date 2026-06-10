@@ -450,21 +450,24 @@ function Get-CasDoctorReport {
     }
 }
 
-function Write-CasDoctorReport {
-    param(
-        [pscustomobject]$Report,
-        [string]$JsonPath
-    )
-
-    if ($JsonPath) {
-        $directory = Split-Path -Parent $JsonPath
-        if ($directory -and -not (Test-Path -LiteralPath $directory)) {
-            New-Item -ItemType Directory -Path $directory -Force | Out-Null
-        }
-
-        $Report | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $JsonPath -Encoding UTF8
+function Test-CasDoctorReport {
+    param([Parameter(Mandatory = $true)][pscustomobject]$Report)
+    foreach ($property in @("bundleId", "generatedAtUtc", "profile", "rootPath", "configPath", "overallStatus", "tools", "services", "repos", "recommendations")) {
+        if (-not $Report.PSObject.Properties[$property]) { throw "Doctor report is missing required property '$property'." }
     }
+    if (@("ready", "degraded", "not-ready") -notcontains $Report.overallStatus) { throw "Doctor report has invalid overallStatus '$($Report.overallStatus)'." }
+    $generatedAt = [DateTime]::MinValue
+    if (-not [DateTime]::TryParse($Report.generatedAtUtc, [ref]$generatedAt)) { throw "Doctor report generatedAtUtc is not a valid date-time." }
+    foreach ($tool in @($Report.tools)) { if (@("installed", "missing", "out-of-date") -notcontains $tool.status) { throw "Doctor report has invalid tool status '$($tool.status)'." } }
+    foreach ($service in @($Report.services)) { if (@("ready", "missing", "degraded") -notcontains $service.status) { throw "Doctor report has invalid service status '$($service.status)'." } }
+    foreach ($repo in @($Report.repos)) { if (@("present", "missing") -notcontains $repo.status) { throw "Doctor report has invalid repo status '$($repo.status)'." } }
+    $true
+}
 
+function Write-CasDoctorReport {
+    param([pscustomobject]$Report, [string]$JsonPath)
+    [void](Test-CasDoctorReport -Report $Report)
+    if ($JsonPath) { Write-CasJsonAtomic -InputObject $Report -Path $JsonPath }
     $Report
 }
 
