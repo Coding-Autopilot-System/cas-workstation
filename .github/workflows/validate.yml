@@ -18,11 +18,14 @@ jobs:
       - name: Install Pester
         shell: pwsh
         run: Install-Module Pester -Force -SkipPublisherCheck -MinimumVersion 5.7.1
-      - name: Validate JSON and PowerShell
+      - name: Validate manifest and run Pester
         shell: pwsh
         run: |
-          Get-ChildItem -Recurse -Filter *.json | ForEach-Object { Get-Content -Raw $_.FullName | ConvertFrom-Json | Out-Null }`n          Get-Content -Raw stack.manifest.json | Test-Json -SchemaFile schemas/manifest.schema.json
+          Get-ChildItem -Recurse -Filter *.json | ForEach-Object { Get-Content -Raw $_.FullName | ConvertFrom-Json | Out-Null }
+          Get-Content -Raw stack.manifest.json | Test-Json -SchemaFile schemas/manifest.schema.json
           Invoke-Pester -Path tests -CI
-      - name: Doctor smoke test
+      - name: Validate doctor output
         shell: pwsh
-        run: |`n          .\doctor.ps1 -Profile core -RootPath "$env:RUNNER_TEMP\cas-root" -ConfigPath "$env:RUNNER_TEMP\cas-config" -JsonPath "$env:RUNNER_TEMP\doctor.json"`n          Get-Content -Raw "$env:RUNNER_TEMP\doctor.json" | Test-Json -SchemaFile schemas/doctor.schema.json
+        run: |
+          .\doctor.ps1 -Profile core -RootPath "$env:RUNNER_TEMP\cas-root" -ConfigPath "$env:RUNNER_TEMP\cas-config" -JsonPath "$env:RUNNER_TEMP\doctor.json"
+          Get-Content -Raw "$env:RUNNER_TEMP\doctor.json" | Test-Json -SchemaFile schemas/doctor.schema.json
