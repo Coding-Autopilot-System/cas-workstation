@@ -110,27 +110,29 @@ function Get-CasProfile {
 }
 
 function New-CasDirectoryLayout {
-    param(
-        [string]$RootPath,
-        [string]$ConfigPath,
-        [pscustomobject]$Manifest = (Get-CasManifest)
-    )
+    param([string]$RootPath, [string]$ConfigPath, [pscustomobject]$Manifest = (Get-CasManifest))
 
+    $safeRootPath = Assert-CasSafeManagedPath -Path $RootPath
+    $safeConfigPath = Assert-CasSafeManagedPath -Path $ConfigPath
+    if ($safeRootPath -eq $safeConfigPath) { throw "RootPath and ConfigPath must be different CAS managed directories." }
     $paths = @(
-        $RootPath,
-        (Join-Path $RootPath $Manifest.paths.reposRoot),
-        $ConfigPath,
-        (Join-Path $ConfigPath $Manifest.paths.logs),
-        (Join-Path $ConfigPath $Manifest.paths.state),
-        (Join-Path $ConfigPath $Manifest.paths.memory),
-        (Join-Path $ConfigPath $Manifest.paths.mcp),
-        (Join-Path $ConfigPath $Manifest.paths.config),
-        (Join-Path (Join-Path $ConfigPath $Manifest.paths.mcp) "clients")
+        $safeRootPath,
+        (Assert-CasSafeManagedPath -Path (Join-Path $safeRootPath $Manifest.paths.reposRoot) -ParentPath $safeRootPath),
+        $safeConfigPath,
+        (Assert-CasSafeManagedPath -Path (Join-Path $safeConfigPath $Manifest.paths.logs) -ParentPath $safeConfigPath),
+        (Assert-CasSafeManagedPath -Path (Join-Path $safeConfigPath $Manifest.paths.state) -ParentPath $safeConfigPath),
+        (Assert-CasSafeManagedPath -Path (Join-Path $safeConfigPath $Manifest.paths.memory) -ParentPath $safeConfigPath),
+        (Assert-CasSafeManagedPath -Path (Join-Path $safeConfigPath $Manifest.paths.mcp) -ParentPath $safeConfigPath),
+        (Assert-CasSafeManagedPath -Path (Join-Path $safeConfigPath $Manifest.paths.config) -ParentPath $safeConfigPath),
+        (Assert-CasSafeManagedPath -Path (Join-Path (Join-Path $safeConfigPath $Manifest.paths.mcp) "clients") -ParentPath $safeConfigPath)
     )
-
     foreach ($path in $paths) {
-        if (-not (Test-Path -LiteralPath $path)) {
-            New-Item -ItemType Directory -Path $path -Force | Out-Null
+        if (-not (Test-Path -LiteralPath $path)) { New-Item -ItemType Directory -Path $path -Force | Out-Null }
+    }
+    foreach ($managedPath in @($safeRootPath, $safeConfigPath)) {
+        $markerPath = Join-Path $managedPath ".cas-managed.json"
+        if (-not (Test-Path -LiteralPath $markerPath)) {
+            Write-CasJsonAtomic -Path $markerPath -InputObject ([ordered]@{ bundleId = $Manifest.bundleId; managedPath = $managedPath; createdAtUtc = [DateTime]::UtcNow.ToString("o") })
         }
     }
 }
