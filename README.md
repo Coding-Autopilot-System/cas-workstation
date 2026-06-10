@@ -11,7 +11,8 @@ configured AI-native coding workstation.
 .\doctor.ps1
 .\start.ps1
 .\upgrade.ps1
-.\uninstall.ps1              # preview only`r`n.\uninstall.ps1 -Execute     # removes CAS-owned directories after confirmation
+.\uninstall.ps1              # preview only
+.\uninstall.ps1 -Execute     # removes CAS-owned directories after confirmation
 ```
 
 ## What It Manages
