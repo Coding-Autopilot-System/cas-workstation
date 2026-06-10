@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://coding-autopilot-system.github.io/cas-workstation/schemas/manifest.schema.json",
+  "title": "CAS Workstation Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifestVersion", "bundleName", "bundleId", "defaults", "profiles", "paths", "tools", "repos", "clients", "sharedMcpServer"],
+  "properties": {
+    "manifestVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "bundleName": { "type": "string", "minLength": 1 },
+    "bundleId": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "defaults": {
+      "type": "object", "required": ["rootPath", "configPath", "profile"],
+      "properties": { "rootPath": { "type": "string" }, "configPath": { "type": "string" }, "profile": { "type": "string" } }
+    },
+    "profiles": { "type": "object", "minProperties": 1 },
+    "paths": { "type": "object", "required": ["reposRoot", "logs", "state", "memory", "mcp", "config"] },
+    "tools": { "type": "array", "items": { "type": "object", "required": ["id", "displayName", "command", "minimumVersion", "installers"] } },
+    "repos": { "type": "array", "items": { "type": "object", "required": ["id", "url", "defaultBranch"] } },
+    "clients": { "type": "array", "items": { "type": "object", "required": ["id", "fileName"] } },
+    "sharedMcpServer": { "type": "object", "required": ["name", "transport", "command", "args"] }
+  }
+}

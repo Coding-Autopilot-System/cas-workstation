@@ -1,5 +1,66 @@
 Set-StrictMode -Version Latest
 
+function Get-CasFullPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { throw "CAS managed paths cannot be empty." }
+    [System.IO.Path]::GetFullPath($Path)
+}
+
+function Assert-CasSafeManagedPath {
+    param([Parameter(Mandatory = $true)][string]$Path, [string]$ParentPath)
+    $fullPath = Get-CasFullPath -Path $Path
+    $root = [System.IO.Path]::GetPathRoot($fullPath)
+    if ($fullPath.TrimEnd('\', '/') -eq $root.TrimEnd('\', '/')) { throw "Refusing to use filesystem root '$fullPath' as a CAS managed path." }
+    if ($ParentPath) {
+        $fullParent = (Get-CasFullPath -Path $ParentPath).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+        if (-not $fullPath.StartsWith($fullParent, [System.StringComparison]::OrdinalIgnoreCase)) { throw "Path '$fullPath' escapes the CAS managed parent '$fullParent'." }
+    }
+    $fullPath
+}
+
+function Test-CasRelativePath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if ([System.IO.Path]::IsPathRooted($Path)) { return $false }
+    -not (($Path -split '[\\/]') -contains '..')
+}
+
+function Test-CasManifest {
+    param([Parameter(Mandatory = $true)][pscustomobject]$Manifest)
+    foreach ($property in @("manifestVersion", "bundleId", "defaults", "profiles", "paths", "tools", "repos", "clients", "sharedMcpServer")) {
+        if (-not $Manifest.PSObject.Properties[$property]) { throw "Manifest is missing required property '$property'." }
+    }
+    [void](Assert-CasSafeManagedPath -Path $Manifest.defaults.rootPath)
+    [void](Assert-CasSafeManagedPath -Path $Manifest.defaults.configPath)
+    foreach ($property in @("reposRoot", "logs", "state", "memory", "mcp", "config")) {
+        $value = $Manifest.paths.$property
+        if (-not $value -or -not (Test-CasRelativePath -Path $value)) { throw "Manifest path '$property' must be a safe relative path." }
+    }
+    foreach ($collectionName in @("tools", "repos", "clients")) {
+        $ids = @($Manifest.$collectionName | ForEach-Object { $_.id })
+        if ($ids.Count -ne @($ids | Select-Object -Unique).Count -or $ids -contains $null -or $ids -contains "") { throw "Manifest collection '$collectionName' must contain unique, non-empty ids." }
+    }
+    $toolIds = @($Manifest.tools.id)
+    $repoIds = @($Manifest.repos.id)
+    foreach ($profileProperty in $Manifest.profiles.PSObject.Properties) {
+        foreach ($toolId in @($profileProperty.Value.tools)) { if ($toolIds -notcontains $toolId) { throw "Profile '$($profileProperty.Name)' references unknown tool '$toolId'." } }
+        foreach ($repoId in @($profileProperty.Value.repos)) { if ($repoIds -notcontains $repoId) { throw "Profile '$($profileProperty.Name)' references unknown repo '$repoId'." } }
+    }
+    $true
+}
+
+function Write-CasJsonAtomic {
+    param([Parameter(Mandatory = $true)][object]$InputObject, [Parameter(Mandatory = $true)][string]$Path)
+    $fullPath = Get-CasFullPath -Path $Path
+    $directory = Split-Path -Parent $fullPath
+    if (-not (Test-Path -LiteralPath $directory)) { New-Item -ItemType Directory -Path $directory -Force | Out-Null }
+    $temporaryPath = Join-Path $directory (".{0}.{1}.tmp" -f ([System.IO.Path]::GetFileName($fullPath)), [guid]::NewGuid().ToString("N"))
+    try {
+        $InputObject | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $temporaryPath -Encoding UTF8
+        Move-Item -LiteralPath $temporaryPath -Destination $fullPath -Force
+    }
+    finally { if (Test-Path -LiteralPath $temporaryPath) { Remove-Item -LiteralPath $temporaryPath -Force } }
+}
+
 function Get-CasModuleRoot {
     Split-Path -Parent $PSScriptRoot
 }
@@ -13,7 +74,9 @@ function Get-CasManifest {
         [string]$Path = (Get-CasManifestPath)
     )
 
-    Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    $manifest = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    [void](Test-CasManifest -Manifest $manifest)
+    $manifest
 }
 
 function Get-CasDefaultRootPath {
