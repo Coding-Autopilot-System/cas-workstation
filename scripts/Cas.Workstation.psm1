@@ -548,40 +548,27 @@ function Sync-CasRepo {
 }
 
 function New-CasClientConfigs {
-    param(
-        [string]$ConfigPath,
-        [string]$RootPath = (Get-CasDefaultRootPath),
-        [pscustomobject]$Manifest = (Get-CasManifest)
-    )
-
-    $clientRoot = Join-Path (Join-Path $ConfigPath $Manifest.paths.mcp) "clients"
-    if (-not (Test-Path -LiteralPath $clientRoot)) {
-        New-Item -ItemType Directory -Path $clientRoot -Force | Out-Null
-    }
-
-    $promptImproverEntry = Join-Path (Join-Path (Join-Path $RootPath $Manifest.paths.reposRoot) "Promptimprover") "dist\index.js"
-    $sharedServer = [ordered]@{
-        mcpServers = @{
-            ($Manifest.sharedMcpServer.name) = @{
-                command = $Manifest.sharedMcpServer.command
-                args = @($promptImproverEntry)
-                transport = $Manifest.sharedMcpServer.transport
-            }
-        }
-    }
-
+    param([string]$ConfigPath, [string]$RootPath = (Get-CasDefaultRootPath), [pscustomobject]$Manifest = (Get-CasManifest))
+    $safeConfigPath = Assert-CasSafeManagedPath -Path $ConfigPath
+    $safeRootPath = Assert-CasSafeManagedPath -Path $RootPath
+    $clientRoot = Assert-CasSafeManagedPath -Path (Join-Path (Join-Path $safeConfigPath $Manifest.paths.mcp) "clients") -ParentPath $safeConfigPath
+    if (-not (Test-Path -LiteralPath $clientRoot)) { New-Item -ItemType Directory -Path $clientRoot -Force | Out-Null }
+    $promptImproverEntry = Assert-CasSafeManagedPath -Path (Join-Path (Join-Path (Join-Path $safeRootPath $Manifest.paths.reposRoot) "Promptimprover") "dist\index.js") -ParentPath $safeRootPath
+    $serverDefinition = [pscustomobject]@{ command = $Manifest.sharedMcpServer.command; args = @($promptImproverEntry); transport = $Manifest.sharedMcpServer.transport }
     foreach ($client in @($Manifest.clients)) {
-        $target = Join-Path $clientRoot $client.fileName
-        $sharedServer | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $target -Encoding UTF8
+        if (-not (Test-CasRelativePath -Path $client.fileName)) { throw "Client file name '$($client.fileName)' is not a safe relative path." }
+        $target = Assert-CasSafeManagedPath -Path (Join-Path $clientRoot $client.fileName) -ParentPath $clientRoot
+        $config = if (Test-Path -LiteralPath $target) {
+            try { Get-Content -LiteralPath $target -Raw | ConvertFrom-Json } catch { throw "Refusing to overwrite invalid existing client configuration '$target'." }
+        } else { [pscustomobject]@{} }
+        if (-not $config.PSObject.Properties["mcpServers"]) { $config | Add-Member -NotePropertyName "mcpServers" -NotePropertyValue ([pscustomobject]@{}) }
+        if ($null -eq $config.mcpServers.PSObject) { throw "Existing mcpServers value in '$target' is not an object." }
+        $config.mcpServers | Add-Member -NotePropertyName $Manifest.sharedMcpServer.name -NotePropertyValue $serverDefinition -Force
+        Write-CasJsonAtomic -InputObject $config -Path $target
     }
-
-    $runtimeConfig = [ordered]@{
-        bundleId = $Manifest.bundleId
-        generatedAtUtc = [DateTime]::UtcNow.ToString("o")
-        mcpServer = $Manifest.sharedMcpServer
-    }
-    $runtimeTarget = Join-Path (Join-Path $ConfigPath $Manifest.paths.config) "stack.runtime.json"
-    $runtimeConfig | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $runtimeTarget -Encoding UTF8
+    $runtimeConfig = [ordered]@{ bundleId = $Manifest.bundleId; generatedAtUtc = [DateTime]::UtcNow.ToString("o"); mcpServer = $Manifest.sharedMcpServer }
+    $runtimeTarget = Assert-CasSafeManagedPath -Path (Join-Path (Join-Path $safeConfigPath $Manifest.paths.config) "stack.runtime.json") -ParentPath $safeConfigPath
+    Write-CasJsonAtomic -InputObject $runtimeConfig -Path $runtimeTarget
 }
 
 function Test-CasManagedDirectory {
