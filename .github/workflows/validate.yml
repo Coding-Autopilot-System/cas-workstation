@@ -11,19 +11,27 @@ permissions:
 jobs:
   test:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
-      - name: Install Pester
+      - name: Install validation modules
         shell: pwsh
-        run: Install-Module Pester -Force -SkipPublisherCheck -MinimumVersion 5.7.1
-      - name: Validate manifest and run Pester
+        run: |
+          Install-Module Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck
+          Install-Module PSScriptAnalyzer -RequiredVersion 1.24.0 -Force
+      - name: Validate contracts and static quality
         shell: pwsh
         run: |
           Get-ChildItem -Recurse -Filter *.json | ForEach-Object { Get-Content -Raw $_.FullName | ConvertFrom-Json | Out-Null }
           Get-Content -Raw stack.manifest.json | Test-Json -SchemaFile schemas/manifest.schema.json
-          Invoke-Pester -Path tests -CI
+          Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error
+      - name: Run Pester on PowerShell 7
+        shell: pwsh
+        run: Invoke-Pester -Path tests -CI
+      - name: Run Pester on Windows PowerShell 5.1
+        shell: powershell
+        run: Invoke-Pester -Path tests -CI
       - name: Validate doctor output
         shell: pwsh
         run: |

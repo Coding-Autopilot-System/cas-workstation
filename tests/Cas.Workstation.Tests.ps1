@@ -58,6 +58,15 @@ Describe "CAS Workstation safety contracts" {
         Test-Path -LiteralPath $config | Should Be $true
     }
 
+    It "removes only owned directories after explicit execution" {
+        $root = Join-Path $TestDrive "execute-root"
+        $config = Join-Path $TestDrive "execute-config"
+        New-CasDirectoryLayout -RootPath $root -ConfigPath $config
+        & (Join-Path $PSScriptRoot "..\uninstall.ps1") -RootPath $root -ConfigPath $config -Execute -Confirm:$false
+        Test-Path -LiteralPath $root | Should Be $false
+        Test-Path -LiteralPath $config | Should Be $false
+    }
+
     It "refuses uninstall of unowned directories" {
         $root = Join-Path $TestDrive "unowned-root"
         $config = Join-Path $TestDrive "unowned-config"
