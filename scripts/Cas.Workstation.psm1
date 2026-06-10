@@ -518,26 +518,33 @@ function Install-CasTool {
 }
 
 function Sync-CasRepo {
-    param(
-        [pscustomobject]$Repo,
-        [string]$RootPath,
-        [pscustomobject]$Manifest = (Get-CasManifest)
-    )
+    param([pscustomobject]$Repo, [string]$RootPath, [pscustomobject]$Manifest = (Get-CasManifest))
 
+    if (-not (Test-CasRelativePath -Path $Repo.id)) { throw "Repo id '$($Repo.id)' is not a safe relative path." }
     $git = Get-Command git -ErrorAction Stop
-    $reposRoot = Join-Path $RootPath $Manifest.paths.reposRoot
-    $repoPath = Join-Path $reposRoot $Repo.id
+    $safeRootPath = Assert-CasSafeManagedPath -Path $RootPath
+    $reposRoot = Assert-CasSafeManagedPath -Path (Join-Path $safeRootPath $Manifest.paths.reposRoot) -ParentPath $safeRootPath
+    $repoPath = Assert-CasSafeManagedPath -Path (Join-Path $reposRoot $Repo.id) -ParentPath $reposRoot
 
     if (-not (Test-Path -LiteralPath $repoPath)) {
         Write-Host "[clone] $($Repo.id)"
         & $git.Source clone $Repo.url $repoPath
+        if ($LASTEXITCODE -ne 0) { throw "Clone failed for '$($Repo.id)'." }
         return
     }
+    if (-not (Test-Path -LiteralPath (Join-Path $repoPath ".git"))) { throw "Refusing to update '$repoPath' because it is not a Git repository." }
+    $originUrl = (& $git.Source -C $repoPath remote get-url origin 2>$null)
+    if ($LASTEXITCODE -ne 0 -or $originUrl.TrimEnd("/") -ne $Repo.url.TrimEnd("/")) { throw "Refusing to update '$repoPath' because its origin does not match '$($Repo.url)'." }
+    $dirty = (& $git.Source -C $repoPath status --porcelain)
+    if ($dirty) { throw "Refusing to update '$repoPath' because it has uncommitted changes." }
 
     Write-Host "[update] $($Repo.id)"
     & $git.Source -C $repoPath fetch origin
+    if ($LASTEXITCODE -ne 0) { throw "Fetch failed for '$($Repo.id)'." }
     & $git.Source -C $repoPath checkout $Repo.defaultBranch
+    if ($LASTEXITCODE -ne 0) { throw "Checkout failed for '$($Repo.id)'." }
     & $git.Source -C $repoPath pull --ff-only origin $Repo.defaultBranch
+    if ($LASTEXITCODE -ne 0) { throw "Fast-forward update failed for '$($Repo.id)'." }
 }
 
 function New-CasClientConfigs {
