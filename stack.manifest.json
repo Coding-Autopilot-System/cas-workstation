@@ -1,0 +1,358 @@
+{
+  "manifestVersion": "1.0.0",
+  "bundleName": "CAS Workstation",
+  "bundleId": "cas-workstation",
+  "defaults": {
+    "rootPath": "C:\\CodingAutopilotSystem",
+    "configPath": "C:\\Users\\KimHarjamaki\\.cas",
+    "profile": "full"
+  },
+  "profiles": {
+    "core": {
+      "description": "Base workstation for AI-native coding.",
+      "tools": [
+        "git",
+        "gh",
+        "node",
+        "npm",
+        "python",
+        "uv",
+        "dotnet",
+        "docker",
+        "az",
+        "wsl",
+        "codex",
+        "claude",
+        "gemini"
+      ],
+      "repos": [
+        "Promptimprover",
+        "autogen",
+        "gsd-orchestrator"
+      ],
+      "services": [
+        "docker-daemon",
+        "gh-auth"
+      ]
+    },
+    "full": {
+      "description": "Full workstation with org automation components.",
+      "tools": [
+        "git",
+        "gh",
+        "node",
+        "npm",
+        "python",
+        "uv",
+        "dotnet",
+        "docker",
+        "az",
+        "wsl",
+        "codex",
+        "claude",
+        "gemini"
+      ],
+      "repos": [
+        "Promptimprover",
+        "autogen",
+        "gsd-orchestrator",
+        "autopilot-core",
+        "ci-autopilot"
+      ],
+      "services": [
+        "docker-daemon",
+        "gh-auth"
+      ]
+    }
+  },
+  "paths": {
+    "reposRoot": "repos",
+    "logs": "logs",
+    "state": "state",
+    "memory": "memory",
+    "mcp": "mcp",
+    "config": "config"
+  },
+  "tools": [
+    {
+      "id": "git",
+      "displayName": "Git",
+      "command": "git",
+      "versionArgs": [
+        "--version"
+      ],
+      "versionPattern": "(?<version>\\d+\\.\\d+\\.\\d+)",
+      "minimumVersion": "2.53.0",
+      "installers": [
+        {
+          "kind": "winget",
+          "id": "Git.Git"
+        },
+        {
+          "kind": "scoop",
+          "id": "git"
+        }
+      ]
+    },
+    {
+      "id": "gh",
+      "displayName": "GitHub CLI",
+      "command": "gh",
+      "versionArgs": [
+        "--version"
+      ],
+      "versionPattern": "(?<version>\\d+\\.\\d+\\.\\d+)",
+      "minimumVersion": "2.86.0",
+      "installers": [
+        {
+          "kind": "winget",
+          "id": "GitHub.cli"
+        },
+        {
+          "kind": "scoop",
+          "id": "gh"
+        }
+      ]
+    },
+    {
+      "id": "node",
+      "displayName": "Node.js",
+      "command": "node",
+      "versionArgs": [
+        "--version"
+      ],
+      "versionPattern": "(?<version>\\d+\\.\\d+\\.\\d+)",
+      "minimumVersion": "22.0.0",
+      "installers": [
+        {
+          "kind": "winget",
+          "id": "OpenJS.NodeJS"
+        },
+        {
+          "kind": "scoop",
+          "id": "nodejs"
+        }
+      ]
+    },
+    {
+      "id": "npm",
+      "displayName": "npm",
+      "command": "npm",
+      "versionArgs": [
+        "--version"
+      ],
+      "versionPattern": "(?<version>\\d+\\.\\d+\\.\\d+)",
+      "minimumVersion": "11.0.0",
+      "installers": []
+    },
+    {
+      "id": "python",
+      "displayName": "Python",
+      "command": "python",
+      "versionArgs": [
+        "--version"
+      ],
+      "versionPattern": "(?<version>\\d+\\.\\d+\\.\\d+)",
+      "minimumVersion": "3.12.0",
+      "installers": [
+        {
+          "kind": "winget",
+          "id": "Python.Python.3.12"
+        },
+        {
+          "kind": "scoop",
+          "id": "python"
+        }
+      ]
+    },
+    {
+      "id": "uv",
+      "displayName": "uv",
+      "command": "uv",
+      "versionArgs": [
+        "--version"
+      ],
+      "versionPattern": "(?<version>\\d+\\.\\d+\\.\\d+)",
+      "minimumVersion": "0.4.0",
+      "installers": [
+        {
+          "kind": "winget",
+          "id": "Astral-sh.uv"
+        },
+        {
+          "kind": "scoop",
+          "id": "uv"
+        }
+      ]
+    },
+    {
+      "id": "dotnet",
+      "displayName": ".NET SDK",
+      "command": "dotnet",
+      "versionArgs": [
+        "--version"
+      ],
+      "versionPattern": "(?<version>\\d+\\.\\d+\\.\\d+)",
+      "minimumVersion": "10.0.0",
+      "installers": [
+        {
+          "kind": "winget",
+          "id": "Microsoft.DotNet.SDK.10"
+        },
+        {
+          "kind": "scoop",
+          "id": "dotnet-sdk"
+        }
+      ]
+    },
+    {
+      "id": "docker",
+      "displayName": "Docker Desktop",
+      "command": "docker",
+      "versionArgs": [
+        "--version"
+      ],
+      "versionPattern": "(?<version>\\d+\\.\\d+\\.\\d+)",
+      "minimumVersion": "29.0.0",
+      "installers": [
+        {
+          "kind": "winget",
+          "id": "Docker.DockerDesktop"
+        }
+      ]
+    },
+    {
+      "id": "az",
+      "displayName": "Azure CLI",
+      "command": "az",
+      "versionArgs": [
+        "--version"
+      ],
+      "versionPattern": "(?<version>\\d+\\.\\d+\\.\\d+)",
+      "minimumVersion": "2.80.0",
+      "installers": [
+        {
+          "kind": "winget",
+          "id": "Microsoft.AzureCLI"
+        },
+        {
+          "kind": "scoop",
+          "id": "azure-cli"
+        }
+      ]
+    },
+    {
+      "id": "wsl",
+      "displayName": "WSL",
+      "command": "wsl.exe",
+      "versionArgs": [
+        "--status"
+      ],
+      "versionPattern": "(?<version>\\d+)",
+      "minimumVersion": "2.0.0",
+      "installers": [
+        {
+          "kind": "manual",
+          "hint": "Enable WSL with: wsl --install"
+        }
+      ]
+    },
+    {
+      "id": "codex",
+      "displayName": "Codex CLI",
+      "command": "codex",
+      "versionArgs": [
+        "--version"
+      ],
+      "versionPattern": "(?<version>\\d+\\.\\d+\\.\\d+)",
+      "minimumVersion": "0.125.0",
+      "installers": [
+        {
+          "kind": "npm",
+          "id": "@openai/codex"
+        }
+      ]
+    },
+    {
+      "id": "claude",
+      "displayName": "Claude Code",
+      "command": "claude",
+      "versionArgs": [
+        "--version"
+      ],
+      "versionPattern": "(?<version>\\d+\\.\\d+\\.\\d+)",
+      "minimumVersion": "2.0.0",
+      "installers": [
+        {
+          "kind": "npm",
+          "id": "@anthropic-ai/claude-code"
+        }
+      ]
+    },
+    {
+      "id": "gemini",
+      "displayName": "Gemini CLI",
+      "command": "gemini",
+      "versionArgs": [
+        "--version"
+      ],
+      "versionPattern": "(?<version>\\d+\\.\\d+\\.\\d+)",
+      "minimumVersion": "0.45.0",
+      "installers": [
+        {
+          "kind": "npm",
+          "id": "@google/gemini-cli"
+        }
+      ]
+    }
+  ],
+  "repos": [
+    {
+      "id": "Promptimprover",
+      "url": "https://github.com/Coding-Autopilot-System/Promptimprover.git",
+      "defaultBranch": "master"
+    },
+    {
+      "id": "autogen",
+      "url": "https://github.com/Coding-Autopilot-System/autogen.git",
+      "defaultBranch": "main"
+    },
+    {
+      "id": "gsd-orchestrator",
+      "url": "https://github.com/Coding-Autopilot-System/gsd-orchestrator.git",
+      "defaultBranch": "main"
+    },
+    {
+      "id": "autopilot-core",
+      "url": "https://github.com/Coding-Autopilot-System/autopilot-core.git",
+      "defaultBranch": "main"
+    },
+    {
+      "id": "ci-autopilot",
+      "url": "https://github.com/Coding-Autopilot-System/ci-autopilot.git",
+      "defaultBranch": "main"
+    }
+  ],
+  "clients": [
+    {
+      "id": "codex",
+      "fileName": "codex.mcp.json"
+    },
+    {
+      "id": "claude",
+      "fileName": "claude.settings.fragment.json"
+    },
+    {
+      "id": "gemini",
+      "fileName": "gemini.mcp.json"
+    }
+  ],
+  "sharedMcpServer": {
+    "name": "prompt-refiner",
+    "transport": "stdio",
+    "command": "node",
+    "args": [
+      "C:\\CodingAutopilotSystem\\repos\\Promptimprover\\dist\\index.js"
+    ]
+  }
+}

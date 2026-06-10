@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://coding-autopilot-system.github.io/cas-workstation/schemas/doctor.schema.json",
+  "title": "CAS Workstation Doctor Report",
+  "type": "object",
+  "required": [
+    "bundleId",
+    "generatedAtUtc",
+    "profile",
+    "rootPath",
+    "configPath",
+    "overallStatus",
+    "tools",
+    "services",
+    "repos",
+    "recommendations"
+  ],
+  "properties": {
+    "bundleId": {
+      "type": "string"
+    },
+    "generatedAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "profile": {
+      "type": "string"
+    },
+    "rootPath": {
+      "type": "string"
+    },
+    "configPath": {
+      "type": "string"
+    },
+    "overallStatus": {
+      "type": "string",
+      "enum": [
+        "ready",
+        "degraded",
+        "not-ready"
+      ]
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/toolStatus"
+      }
+    },
+    "services": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/serviceStatus"
+      }
+    },
+    "repos": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/repoStatus"
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "toolStatus": {
+      "type": "object",
+      "required": [
+        "id",
+        "displayName",
+        "status",
+        "required"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "installed",
+            "missing",
+            "out-of-date"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "installedVersion": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "minimumVersion": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "serviceStatus": {
+      "type": "object",
+      "required": [
+        "id",
+        "status",
+        "message"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "missing",
+            "degraded"
+          ]
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "repoStatus": {
+      "type": "object",
+      "required": [
+        "id",
+        "status",
+        "path"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "present",
+            "missing"
+          ]
+        },
+        "path": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
