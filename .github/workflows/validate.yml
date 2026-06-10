@@ -1,0 +1,28 @@
+name: Validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Install Pester
+        shell: pwsh
+        run: Install-Module Pester -Force -SkipPublisherCheck -MinimumVersion 5.7.1
+      - name: Validate JSON and PowerShell
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse -Filter *.json | ForEach-Object { Get-Content -Raw $_.FullName | ConvertFrom-Json | Out-Null }
+          Invoke-Pester -Path tests -CI
+      - name: Doctor smoke test
+        shell: pwsh
+        run: .\doctor.ps1 -Profile core -RootPath "$env:RUNNER_TEMP\cas-root" -ConfigPath "$env:RUNNER_TEMP\cas-config" -JsonPath "$env:RUNNER_TEMP\doctor.json"

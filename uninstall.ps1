@@ -15,7 +15,7 @@ $manifest = Get-CasManifest
 if (-not $RootPath) { $RootPath = Get-CasDefaultRootPath -Manifest $manifest }
 if (-not $ConfigPath) { $ConfigPath = Get-CasDefaultConfigPath -Manifest $manifest }
 
-$targets = @($RootPath, $ConfigPath | ForEach-Object { Assert-CasSafeManagedPath -Path $_ })
+$targets = @((Assert-CasSafeManagedPath -Path $RootPath), (Assert-CasSafeManagedPath -Path $ConfigPath))
 if ($targets[0] -eq $targets[1] -or $targets[0].StartsWith($targets[1] + '\', [System.StringComparison]::OrdinalIgnoreCase) -or $targets[1].StartsWith($targets[0] + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "RootPath and ConfigPath must be separate, non-nested managed directories."
 }
