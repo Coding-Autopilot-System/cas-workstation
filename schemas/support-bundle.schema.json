@@ -1,0 +1,27 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://coding-autopilot-system.github.io/cas-workstation/schemas/support-bundle.schema.json",
+  "title": "CAS Workstation Support Bundle Metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "bundleId", "generatedAtUtc", "redacted", "files", "excludedCategories"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "bundleId": { "type": "string", "minLength": 1 },
+    "generatedAtUtc": { "type": "string", "format": "date-time" },
+    "redacted": { "const": true },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": { "type": "string" },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "excludedCategories": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+  }
+}

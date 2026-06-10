@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://coding-autopilot-system.github.io/cas-workstation/schemas/managed-state.schema.json",
+  "title": "CAS Workstation Managed State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "bundleId", "profile", "desiredStateDigest", "resources", "operations"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "bundleId": { "type": "string", "minLength": 1 },
+    "profile": { "type": "string", "minLength": 1 },
+    "desiredStateDigest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "resources": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["id", "kind", "ownership", "target"], "properties": { "id": { "type": "string" }, "kind": { "type": "string" }, "ownership": { "enum": ["created", "modified", "observed"] }, "target": { "type": "string" } } } },
+    "operations": { "type": "array", "items": { "type": "string" } }
+  }
+}
+

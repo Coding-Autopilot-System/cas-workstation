@@ -3,7 +3,9 @@
   "$id": "https://coding-autopilot-system.github.io/cas-workstation/schemas/doctor.schema.json",
   "title": "CAS Workstation Doctor Report",
   "type": "object",
+  "additionalProperties": false,
   "required": [
+    "schemaVersion",
     "bundleId",
     "generatedAtUtc",
     "profile",
@@ -16,6 +18,9 @@
     "recommendations"
   ],
   "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
     "bundleId": {
       "type": "string"
     },
