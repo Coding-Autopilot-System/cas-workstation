@@ -1,4 +1,4 @@
-﻿{
+{
     "schemaVersion":  "1.0.0",
     "requirements":  [
                          {
@@ -61,142 +61,142 @@
                          {
                              "id":  "MAN-01",
                              "phase":  2,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/Manifest.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "MAN-02",
                              "phase":  2,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/Manifest.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "MAN-03",
                              "phase":  2,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/Manifest.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "MAN-04",
                              "phase":  2,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/Manifest.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "MAN-05",
                              "phase":  2,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/Manifest.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "SAFE-01",
                              "phase":  2,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/Safety.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "SAFE-02",
                              "phase":  2,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/Safety.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "SAFE-03",
                              "phase":  2,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/Uninstall.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "SAFE-04",
                              "phase":  2,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/Safety.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "SAFE-05",
                              "phase":  2,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/Safety.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "OPS-01",

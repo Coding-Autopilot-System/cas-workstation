@@ -13,7 +13,586 @@ function Get-CasManifest {
         [string]$Path = (Get-CasManifestPath)
     )
 
-    Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "Manifest was not found: $Path"
+    }
+
+    try {
+        $manifest = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    }
+    catch {
+        throw "Manifest '$Path' is not valid JSON: $($_.Exception.Message)"
+    }
+
+    Assert-CasManifest -Manifest $manifest
+    $manifest
+}
+
+function Get-CasPropertyNames {
+    param([object]$InputObject)
+
+    @($InputObject.PSObject.Properties | ForEach-Object { $_.Name })
+}
+
+function Assert-CasUniqueIds {
+    param([string]$Category, [object[]]$Items)
+
+    $duplicates = @($Items | ForEach-Object id | Group-Object | Where-Object Count -gt 1 | ForEach-Object Name)
+    if ($duplicates.Count -gt 0) {
+        throw "Manifest category '$Category' contains duplicate id(s): $($duplicates -join ', ')."
+    }
+}
+
+function Assert-CasManifest {
+    param([Parameter(Mandatory = $true)][pscustomobject]$Manifest)
+
+    $requiredProperties = @("manifestVersion", "bundleId", "defaults", "policy", "profiles", "paths", "tools", "repos", "services", "clients", "skills", "workspaces", "sharedMcpServer")
+    foreach ($property in $requiredProperties) {
+        if (-not $Manifest.PSObject.Properties[$property]) {
+            throw "Manifest is missing required property '$property'."
+        }
+    }
+
+    $categories = @("tools", "repos", "services", "clients", "skills", "workspaces")
+    foreach ($category in $categories) {
+        Assert-CasUniqueIds -Category $category -Items @($Manifest.$category)
+    }
+
+    $allowedCommands = @($Manifest.policy.allowedCommands)
+    foreach ($tool in @($Manifest.tools)) {
+        if ($allowedCommands -notcontains $tool.command) {
+            throw "Tool '$($tool.id)' uses unallowlisted command '$($tool.command)'."
+        }
+        foreach ($installer in @($tool.installers)) {
+            if (@($Manifest.policy.allowedInstallerKinds) -notcontains $installer.kind) {
+                throw "Tool '$($tool.id)' uses unallowlisted installer kind '$($installer.kind)'."
+            }
+            if ($installer.kind -ne "manual" -and (-not $installer.id -or $installer.id -notmatch '^[A-Za-z0-9@][A-Za-z0-9@/._-]+$')) {
+                throw "Tool '$($tool.id)' has an invalid package identity."
+            }
+        }
+    }
+
+    foreach ($repo in @($Manifest.repos)) {
+        $trusted = @($Manifest.policy.allowedRepositoryPrefixes | Where-Object { $repo.url.StartsWith($_, [StringComparison]::OrdinalIgnoreCase) })
+        if ($trusted.Count -eq 0) {
+            throw "Repository '$($repo.id)' uses unallowlisted URL '$($repo.url)'."
+        }
+    }
+
+    foreach ($client in @($Manifest.clients)) {
+        if (@($Manifest.policy.allowedConfigTargets) -notcontains $client.fileName) {
+            throw "Client '$($client.id)' uses unallowlisted configuration target '$($client.fileName)'."
+        }
+    }
+
+    if ($allowedCommands -notcontains $Manifest.sharedMcpServer.command) {
+        throw "Shared MCP server uses unallowlisted command '$($Manifest.sharedMcpServer.command)'."
+    }
+
+    foreach ($profileName in Get-CasPropertyNames -InputObject $Manifest.profiles) {
+        $profile = $Manifest.profiles.PSObject.Properties[$profileName].Value
+        foreach ($category in $categories) {
+            if (-not $profile.PSObject.Properties[$category]) {
+                throw "Profile '$profileName' is missing category '$category'."
+            }
+            $selection = $profile.$category
+            foreach ($level in @("required", "optional")) {
+                if (-not $selection.PSObject.Properties[$level]) {
+                    throw "Profile '$profileName' category '$category' is missing '$level'."
+                }
+            }
+            $overlap = @($selection.required | Where-Object { @($selection.optional) -contains $_ })
+            if ($overlap.Count -gt 0) {
+                throw "Profile '$profileName' category '$category' repeats id(s) as required and optional: $($overlap -join ', ')."
+            }
+            $knownIds = @($Manifest.$category | ForEach-Object id)
+            foreach ($id in @($selection.required) + @($selection.optional)) {
+                if ($knownIds -notcontains $id) {
+                    throw "Profile '$profileName' references unknown $category id '$id'."
+                }
+            }
+        }
+    }
+
+    if (-not $Manifest.profiles.PSObject.Properties[$Manifest.defaults.profile]) {
+        throw "Default profile '$($Manifest.defaults.profile)' does not exist."
+    }
+}
+
+function ConvertTo-CasCanonicalValue {
+    param([AllowNull()][object]$Value)
+
+    if ($null -eq $Value) {
+        return $null
+    }
+    if ($Value -is [string] -or $Value -is [ValueType]) {
+        return $Value
+    }
+    if ($Value -is [System.Collections.IDictionary]) {
+        $ordered = [ordered]@{}
+        foreach ($key in @($Value.Keys | Sort-Object)) {
+            $ordered[$key] = ConvertTo-CasCanonicalValue -Value $Value[$key]
+        }
+        return $ordered
+    }
+    if ($Value -is [System.Collections.IEnumerable]) {
+        return @($Value | ForEach-Object { ConvertTo-CasCanonicalValue -Value $_ })
+    }
+
+    $result = [ordered]@{}
+    foreach ($property in @($Value.PSObject.Properties | Sort-Object Name)) {
+        $result[$property.Name] = ConvertTo-CasCanonicalValue -Value $property.Value
+    }
+    $result
+}
+
+function ConvertTo-CasCanonicalJson {
+    param([Parameter(Mandatory = $true)][object]$InputObject)
+
+    ConvertTo-CasCanonicalValue -Value $InputObject | ConvertTo-Json -Depth 30 -Compress
+}
+
+function Get-CasSha256 {
+    param([Parameter(Mandatory = $true)][string]$Value)
+
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [Text.Encoding]::UTF8.GetBytes($Value)
+        "sha256:$([BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-', '').ToLowerInvariant())"
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
+function Resolve-CasDesiredState {
+    param(
+        [string]$Profile = "full",
+        [pscustomobject]$Manifest = (Get-CasManifest)
+    )
+
+    Assert-CasManifest -Manifest $Manifest
+    $profileDefinition = Get-CasProfile -Name $Profile -Manifest $Manifest
+    $resolved = [ordered]@{
+        schemaVersion = "1.0.0"
+        bundleId = $Manifest.bundleId
+        manifestVersion = $Manifest.manifestVersion
+        profile = $Profile
+        resources = @()
+    }
+
+    foreach ($category in @("tools", "repos", "services", "clients", "skills", "workspaces")) {
+        $catalog = @($Manifest.$category)
+        foreach ($required in @($true, $false)) {
+            $level = if ($required) { "required" } else { "optional" }
+            foreach ($id in @($profileDefinition.$category.$level | Sort-Object)) {
+                $definition = $catalog | Where-Object id -eq $id | Select-Object -First 1
+                $resolved.resources += [ordered]@{
+                    category = $category
+                    id = $id
+                    required = $required
+                    definition = ConvertTo-CasCanonicalValue -Value $definition
+                }
+            }
+        }
+    }
+
+    $canonical = ConvertTo-CasCanonicalJson -InputObject $resolved
+    [pscustomobject]@{
+        desiredState = $resolved
+        canonicalJson = $canonical
+        digest = Get-CasSha256 -Value $canonical
+    }
+}
+
+function Get-CasCompatibilityReport {
+    param(
+        [string]$Profile = "full",
+        [pscustomobject]$Manifest = (Get-CasManifest),
+        [switch]$IncludeToolInventory
+    )
+
+    Assert-CasManifest -Manifest $Manifest
+    $checks = New-Object System.Collections.Generic.List[object]
+    $isWindows = $env:OS -eq "Windows_NT" -or [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
+    $checks.Add([pscustomobject]@{ id = "host-os"; required = $true; status = if ($isWindows) { "supported" } else { "unsupported" }; actual = [Environment]::OSVersion.Platform.ToString(); message = "Windows 11 is the supported v1 host." })
+    $checks.Add([pscustomobject]@{ id = "powershell"; required = $true; status = if ($PSVersionTable.PSVersion -ge [version]"5.1") { "supported" } else { "unsupported" }; actual = $PSVersionTable.PSVersion.ToString(); message = "PowerShell 5.1 or later is required." })
+    $architecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+    $checks.Add([pscustomobject]@{ id = "architecture"; required = $true; status = if ($architecture -in @("X64", "Arm64")) { "supported" } else { "unsupported" }; actual = $architecture; message = "X64 and Arm64 are supported." })
+
+    if ($IncludeToolInventory) {
+        foreach ($tool in Get-CasProfileToolDefinitions -Profile $Profile -Manifest $Manifest) {
+            $status = Get-CasToolStatus -Tool $tool
+            $checks.Add([pscustomobject]@{ id = "tool:$($tool.id)"; required = $true; status = if ($status.status -eq "installed") { "supported" } elseif ($status.status -eq "missing") { "unknown" } else { "unsupported" }; actual = $status.installedVersion; message = $status.message })
+        }
+    }
+
+    [pscustomobject]@{
+        profile = $Profile
+        compatible = @($checks | Where-Object { $_.required -and $_.status -ne "supported" }).Count -eq 0
+        checks = $checks.ToArray()
+    }
+}
+
+function Resolve-CasCanonicalPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    try {
+        $fullPath = [IO.Path]::GetFullPath($Path)
+    }
+    catch {
+        throw "Path '$Path' cannot be canonicalized: $($_.Exception.Message)"
+    }
+
+    $root = [IO.Path]::GetPathRoot($fullPath)
+    if ($fullPath.Length -gt $root.Length) {
+        $fullPath = $fullPath.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    }
+    $fullPath
+}
+
+function Get-CasForbiddenPaths {
+    $paths = New-Object System.Collections.Generic.List[string]
+    foreach ($candidate in @($env:USERPROFILE, $env:SystemRoot, $env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:ProgramData)) {
+        if ($candidate) {
+            $paths.Add((Resolve-CasCanonicalPath -Path $candidate))
+        }
+    }
+    foreach ($drive in [IO.DriveInfo]::GetDrives()) {
+        $paths.Add((Resolve-CasCanonicalPath -Path $drive.RootDirectory.FullName))
+    }
+    $paths.ToArray() | Sort-Object -Unique
+}
+
+function Test-CasPathHasReparsePoint {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$StopAt
+    )
+
+    $current = Resolve-CasCanonicalPath -Path $Path
+    $stop = Resolve-CasCanonicalPath -Path $StopAt
+    while ($current.StartsWith($stop, [StringComparison]::OrdinalIgnoreCase)) {
+        if (Test-Path -LiteralPath $current) {
+            $item = Get-Item -LiteralPath $current -Force
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                return $true
+            }
+        }
+        if ($current.Equals($stop, [StringComparison]::OrdinalIgnoreCase)) {
+            break
+        }
+        $parent = Split-Path -Parent $current
+        if (-not $parent -or $parent -eq $current) {
+            break
+        }
+        $current = $parent
+    }
+    $false
+}
+
+function Assert-CasSafePath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string[]]$ApprovedRoots,
+        [switch]$AllowBoundary
+    )
+
+    $canonical = Resolve-CasCanonicalPath -Path $Path
+    $approved = $null
+    foreach ($rootPath in $ApprovedRoots) {
+        $root = Resolve-CasCanonicalPath -Path $rootPath
+        $prefix = "$root$([IO.Path]::DirectorySeparatorChar)"
+        if ($canonical.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) -or ($AllowBoundary -and $canonical.Equals($root, [StringComparison]::OrdinalIgnoreCase))) {
+            $approved = $root
+            break
+        }
+    }
+    if (-not $approved) {
+        throw "Path '$canonical' is outside approved CAS boundaries."
+    }
+
+    foreach ($forbidden in Get-CasForbiddenPaths) {
+        if ($canonical.Equals($forbidden, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Path '$canonical' is a forbidden root."
+        }
+    }
+
+    foreach ($systemRoot in @($env:SystemRoot, $env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:ProgramData)) {
+        if ($systemRoot) {
+            $forbidden = Resolve-CasCanonicalPath -Path $systemRoot
+            if ($canonical.StartsWith("$forbidden$([IO.Path]::DirectorySeparatorChar)", [StringComparison]::OrdinalIgnoreCase)) {
+                throw "Path '$canonical' is inside a forbidden system directory."
+            }
+        }
+    }
+
+    if (Test-CasPathHasReparsePoint -Path $canonical -StopAt $approved) {
+        throw "Path '$canonical' or an existing ancestor is a reparse point."
+    }
+    $canonical
+}
+
+function New-CasManagedState {
+    param(
+        [Parameter(Mandatory = $true)][string]$BundleId,
+        [Parameter(Mandatory = $true)][string]$Profile,
+        [Parameter(Mandatory = $true)][string]$DesiredStateDigest
+    )
+
+    [pscustomobject]@{
+        schemaVersion = "1.0.0"
+        bundleId = $BundleId
+        profile = $Profile
+        desiredStateDigest = $DesiredStateDigest
+        resources = @()
+        operations = @()
+    }
+}
+
+function Add-CasManagedResource {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$State,
+        [Parameter(Mandatory = $true)][string]$Id,
+        [Parameter(Mandatory = $true)][ValidateSet("directory", "file", "repository", "configuration", "tool")][string]$Kind,
+        [Parameter(Mandatory = $true)][ValidateSet("created", "modified", "observed")][string]$Ownership,
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)][bool]$WasPresentBefore,
+        [string]$BackupTarget,
+        [string]$ContentDigest
+    )
+
+    if ($Ownership -eq "created" -and $WasPresentBefore) {
+        throw "Resource '$Id' cannot be owned as created because it existed before CAS management."
+    }
+    if ($Ownership -eq "modified" -and (-not $WasPresentBefore -or -not $BackupTarget)) {
+        throw "Modified resource '$Id' requires pre-existing evidence and a backup target."
+    }
+    if (@($State.resources | Where-Object id -eq $Id).Count -gt 0) {
+        throw "Managed resource id '$Id' already exists."
+    }
+
+    $State.resources += [pscustomobject]@{
+        id = $Id
+        kind = $Kind
+        ownership = $Ownership
+        target = Resolve-CasCanonicalPath -Path $Target
+        wasPresentBefore = $WasPresentBefore
+        backupTarget = if ($BackupTarget) { Resolve-CasCanonicalPath -Path $BackupTarget } else { $null }
+        contentDigest = if ($ContentDigest) { $ContentDigest } else { $null }
+    }
+    $State
+}
+
+function Assert-CasManagedState {
+    param([Parameter(Mandatory = $true)][pscustomobject]$State)
+
+    if ($State.schemaVersion -ne "1.0.0" -or $State.desiredStateDigest -notmatch '^sha256:[a-f0-9]{64}$') {
+        throw "Managed state has an invalid schema version or desired-state digest."
+    }
+    if (@($State.resources | ForEach-Object id | Group-Object | Where-Object Count -gt 1).Count -gt 0) {
+        throw "Managed state contains duplicate resource ids."
+    }
+    foreach ($resource in @($State.resources)) {
+        if ($resource.ownership -eq "created" -and $resource.wasPresentBefore) {
+            throw "Created resource '$($resource.id)' has conflicting pre-existing evidence."
+        }
+        if ($resource.ownership -eq "modified" -and (-not $resource.wasPresentBefore -or -not $resource.backupTarget)) {
+            throw "Modified resource '$($resource.id)' is missing backup evidence."
+        }
+    }
+}
+
+function Write-CasAtomicJson {
+    param(
+        [Parameter(Mandatory = $true)][object]$InputObject,
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string[]]$ApprovedRoots,
+        [switch]$AllowBoundary
+    )
+
+    $target = Assert-CasSafePath -Path $Path -ApprovedRoots $ApprovedRoots -AllowBoundary:$AllowBoundary
+    $directory = Split-Path -Parent $target
+    if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+        throw "Atomic write parent directory does not exist: $directory"
+    }
+
+    $json = $InputObject | ConvertTo-Json -Depth 30
+    $null = $json | ConvertFrom-Json
+    $temp = Join-Path $directory ".$([IO.Path]::GetFileName($target)).$([Guid]::NewGuid().ToString('N')).tmp"
+    $backup = $null
+    try {
+        [IO.File]::WriteAllText($temp, $json, (New-Object Text.UTF8Encoding($false)))
+        $null = Get-Content -LiteralPath $temp -Raw | ConvertFrom-Json
+        if (Test-Path -LiteralPath $target -PathType Leaf) {
+            $backup = "$target.backup.$([DateTime]::UtcNow.ToString('yyyyMMddHHmmssfff'))"
+            [IO.File]::Replace($temp, $target, $backup)
+        }
+        else {
+            [IO.File]::Move($temp, $target)
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $temp) {
+            Remove-Item -LiteralPath $temp -Force
+        }
+    }
+    $backup
+}
+
+function Write-CasManagedState {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$State,
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string[]]$ApprovedRoots
+    )
+
+    Assert-CasManagedState -State $State
+    Write-CasAtomicJson -InputObject $State -Path $Path -ApprovedRoots $ApprovedRoots
+}
+
+function Read-CasManagedState {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "Managed state was not found: $Path"
+    }
+    try {
+        $state = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+    }
+    catch {
+        throw "Managed state '$Path' is not valid JSON: $($_.Exception.Message)"
+    }
+    Assert-CasManagedState -State $state
+    $state
+}
+
+function Get-CasManagedStatePath {
+    param(
+        [string]$ConfigPath = (Get-CasDefaultConfigPath),
+        [pscustomobject]$Manifest = (Get-CasManifest)
+    )
+
+    Join-Path (Join-Path $ConfigPath $Manifest.paths.state) "managed-state.json"
+}
+
+function Get-CasUninstallPreview {
+    param(
+        [Parameter(Mandatory = $true)][string]$StatePath,
+        [Parameter(Mandatory = $true)][string[]]$ApprovedRoots
+    )
+
+    $state = Read-CasManagedState -Path $StatePath
+    $actions = New-Object System.Collections.Generic.List[object]
+    foreach ($resource in @($state.resources)) {
+        if ($resource.ownership -eq "observed") {
+            $actions.Add([pscustomobject]@{
+                id = $resource.id
+                kind = $resource.kind
+                ownership = $resource.ownership
+                target = $resource.target
+                action = "preserve"
+                actionable = $false
+            })
+            continue
+        }
+
+        $target = Assert-CasSafePath -Path $resource.target -ApprovedRoots $ApprovedRoots -AllowBoundary
+        if ($resource.ownership -eq "modified") {
+            $backup = Assert-CasSafePath -Path $resource.backupTarget -ApprovedRoots $ApprovedRoots
+            if (-not (Test-Path -LiteralPath $backup -PathType Leaf)) {
+                throw "Backup for modified resource '$($resource.id)' was not found: $backup"
+            }
+            $action = "restore-backup"
+        }
+        else {
+            $backup = $null
+            $action = "remove-created"
+        }
+
+        $actions.Add([pscustomobject]@{
+            id = $resource.id
+            kind = $resource.kind
+            ownership = $resource.ownership
+            target = $target
+            backupTarget = $backup
+            action = $action
+            actionable = $true
+        })
+    }
+
+    [pscustomobject]@{
+        schemaVersion = "1.0.0"
+        bundleId = $state.bundleId
+        statePath = Resolve-CasCanonicalPath -Path $StatePath
+        actions = $actions.ToArray()
+    }
+}
+
+function Restore-CasBackupAtomically {
+    param(
+        [Parameter(Mandatory = $true)][string]$BackupPath,
+        [Parameter(Mandatory = $true)][string]$TargetPath
+    )
+
+    $directory = Split-Path -Parent $TargetPath
+    $temp = Join-Path $directory ".$([IO.Path]::GetFileName($TargetPath)).restore.$([Guid]::NewGuid().ToString('N')).tmp"
+    $replacedBackup = Join-Path $directory ".$([IO.Path]::GetFileName($TargetPath)).replaced.$([Guid]::NewGuid().ToString('N')).bak"
+    try {
+        Copy-Item -LiteralPath $BackupPath -Destination $temp -Force
+        if (Test-Path -LiteralPath $TargetPath -PathType Leaf) {
+            [IO.File]::Replace($temp, $TargetPath, $replacedBackup)
+        }
+        else {
+            [IO.File]::Move($temp, $TargetPath)
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $temp) {
+            Remove-Item -LiteralPath $temp -Force
+        }
+        if (Test-Path -LiteralPath $replacedBackup) {
+            Remove-Item -LiteralPath $replacedBackup -Force
+        }
+    }
+}
+
+function Invoke-CasUninstall {
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Preview,
+        [Parameter(Mandatory = $true)][string[]]$ApprovedRoots
+    )
+
+    $results = New-Object System.Collections.Generic.List[object]
+    $actions = @($Preview.actions | Where-Object actionable | Sort-Object { $_.target.Length } -Descending)
+    foreach ($action in $actions) {
+        $target = Assert-CasSafePath -Path $action.target -ApprovedRoots $ApprovedRoots -AllowBoundary
+        if (-not $PSCmdlet.ShouldProcess($target, $action.action)) {
+            continue
+        }
+
+        if ($action.action -eq "restore-backup") {
+            $backup = Assert-CasSafePath -Path $action.backupTarget -ApprovedRoots $ApprovedRoots
+            if (-not (Test-Path -LiteralPath $backup -PathType Leaf)) {
+                throw "Backup for '$($action.id)' disappeared before apply."
+            }
+            Restore-CasBackupAtomically -BackupPath $backup -TargetPath $target
+        }
+        elseif (Test-Path -LiteralPath $target -PathType Leaf) {
+            Remove-Item -LiteralPath $target -Force
+        }
+        elseif (Test-Path -LiteralPath $target -PathType Container) {
+            if (@(Get-ChildItem -LiteralPath $target -Force).Count -gt 0) {
+                throw "Created directory '$target' is not empty; refusing recursive removal."
+            }
+            Remove-Item -LiteralPath $target -Force
+        }
+
+        $results.Add([pscustomobject]@{ id = $action.id; target = $target; action = $action.action; status = "applied" })
+    }
+    $results.ToArray()
 }
 
 function Get-CasDefaultRootPath {
@@ -78,7 +657,8 @@ function Get-CasProfileToolDefinitions {
         [pscustomobject]$Manifest = (Get-CasManifest)
     )
 
-    $toolIds = @((Get-CasProfile -Name $Profile -Manifest $Manifest).tools)
+    $profileDefinition = Get-CasProfile -Name $Profile -Manifest $Manifest
+    $toolIds = @($profileDefinition.tools.required) + @($profileDefinition.tools.optional)
     foreach ($toolId in $toolIds) {
         $Manifest.tools | Where-Object { $_.id -eq $toolId }
     }
@@ -90,7 +670,8 @@ function Get-CasProfileRepos {
         [pscustomobject]$Manifest = (Get-CasManifest)
     )
 
-    $repoIds = @((Get-CasProfile -Name $Profile -Manifest $Manifest).repos)
+    $profileDefinition = Get-CasProfile -Name $Profile -Manifest $Manifest
+    $repoIds = @($profileDefinition.repos.required) + @($profileDefinition.repos.optional)
     foreach ($repoId in $repoIds) {
         $Manifest.repos | Where-Object { $_.id -eq $repoId }
     }
@@ -281,7 +862,8 @@ function Get-CasServiceStatuses {
     )
 
     $statuses = @()
-    $profileServices = @((Get-CasProfile -Name $Profile).services)
+    $profileDefinition = Get-CasProfile -Name $Profile
+    $profileServices = @($profileDefinition.services.required) + @($profileDefinition.services.optional)
     foreach ($service in $profileServices) {
         switch ($service) {
             "docker-daemon" { $statuses += Test-CasDockerDaemon }

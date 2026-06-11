@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$ArtifactPath = (Join-Path $PSScriptRoot ".artifacts\quality"),
+    [string]$ArtifactPath,
     [switch]$SkipTests,
     [switch]$SkipStaticAnalysis,
     [switch]$SkipContracts,
@@ -8,6 +8,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if (-not $ArtifactPath) {
+    $ArtifactPath = Join-Path $PSScriptRoot ".artifacts\quality"
+}
 $results = New-Object System.Collections.Generic.List[object]
 
 function Add-QualityResult {
@@ -90,4 +93,3 @@ if ($failed.Count -gt 0) {
 }
 
 Write-Output "Quality gate passed. Evidence: $summaryPath"
-

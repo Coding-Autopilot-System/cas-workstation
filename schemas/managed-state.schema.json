@@ -10,8 +10,27 @@
     "bundleId": { "type": "string", "minLength": 1 },
     "profile": { "type": "string", "minLength": 1 },
     "desiredStateDigest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
-    "resources": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["id", "kind", "ownership", "target"], "properties": { "id": { "type": "string" }, "kind": { "type": "string" }, "ownership": { "enum": ["created", "modified", "observed"] }, "target": { "type": "string" } } } },
+    "resources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "ownership", "target", "wasPresentBefore"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "enum": ["directory", "file", "repository", "configuration", "tool"] },
+          "ownership": { "enum": ["created", "modified", "observed"] },
+          "target": { "type": "string", "minLength": 1 },
+          "wasPresentBefore": { "type": "boolean" },
+          "backupTarget": { "type": ["string", "null"] },
+          "contentDigest": { "type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$" }
+        },
+        "allOf": [
+          { "if": { "properties": { "ownership": { "const": "created" } } }, "then": { "properties": { "wasPresentBefore": { "const": false } } } },
+          { "if": { "properties": { "ownership": { "const": "modified" } } }, "then": { "required": ["backupTarget"], "properties": { "wasPresentBefore": { "const": true }, "backupTarget": { "type": "string", "minLength": 1 } } } }
+        ]
+      }
+    },
     "operations": { "type": "array", "items": { "type": "string" } }
   }
 }
-

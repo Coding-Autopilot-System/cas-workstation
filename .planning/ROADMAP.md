@@ -30,7 +30,7 @@ CAS Workstation v1 progresses from a functional seed to a trustworthy desired-st
 3. Versioned schemas exist for all planned product contracts, with positive and negative fixtures.
 4. Architecture decision and requirement traceability conventions are documented and tested.
 
-### Phase 2: Manifest, Inventory, and Safety Boundaries
+### Phase 2: Manifest, Inventory, and Safety Boundaries (Complete: 2026-06-11)
 
 **Goal:** CAS can safely resolve desired state, inventory actual state, and prove ownership and path safety before mutation.
 
