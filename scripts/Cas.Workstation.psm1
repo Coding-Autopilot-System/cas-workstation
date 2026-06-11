@@ -459,13 +459,140 @@ function Read-CasManagedState {
         throw "Managed state was not found: $Path"
     }
     try {
-        $state = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+        $state = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
     }
     catch {
         throw "Managed state '$Path' is not valid JSON: $($_.Exception.Message)"
     }
     Assert-CasManagedState -State $state
     $state
+}
+
+function Get-CasManagedStatePath {
+    param(
+        [string]$ConfigPath = (Get-CasDefaultConfigPath),
+        [pscustomobject]$Manifest = (Get-CasManifest)
+    )
+
+    Join-Path (Join-Path $ConfigPath $Manifest.paths.state) "managed-state.json"
+}
+
+function Get-CasUninstallPreview {
+    param(
+        [Parameter(Mandatory = $true)][string]$StatePath,
+        [Parameter(Mandatory = $true)][string[]]$ApprovedRoots
+    )
+
+    $state = Read-CasManagedState -Path $StatePath
+    $actions = New-Object System.Collections.Generic.List[object]
+    foreach ($resource in @($state.resources)) {
+        if ($resource.ownership -eq "observed") {
+            $actions.Add([pscustomobject]@{
+                id = $resource.id
+                kind = $resource.kind
+                ownership = $resource.ownership
+                target = $resource.target
+                action = "preserve"
+                actionable = $false
+            })
+            continue
+        }
+
+        $target = Assert-CasSafePath -Path $resource.target -ApprovedRoots $ApprovedRoots -AllowBoundary
+        if ($resource.ownership -eq "modified") {
+            $backup = Assert-CasSafePath -Path $resource.backupTarget -ApprovedRoots $ApprovedRoots
+            if (-not (Test-Path -LiteralPath $backup -PathType Leaf)) {
+                throw "Backup for modified resource '$($resource.id)' was not found: $backup"
+            }
+            $action = "restore-backup"
+        }
+        else {
+            $backup = $null
+            $action = "remove-created"
+        }
+
+        $actions.Add([pscustomobject]@{
+            id = $resource.id
+            kind = $resource.kind
+            ownership = $resource.ownership
+            target = $target
+            backupTarget = $backup
+            action = $action
+            actionable = $true
+        })
+    }
+
+    [pscustomobject]@{
+        schemaVersion = "1.0.0"
+        bundleId = $state.bundleId
+        statePath = Resolve-CasCanonicalPath -Path $StatePath
+        actions = $actions.ToArray()
+    }
+}
+
+function Restore-CasBackupAtomically {
+    param(
+        [Parameter(Mandatory = $true)][string]$BackupPath,
+        [Parameter(Mandatory = $true)][string]$TargetPath
+    )
+
+    $directory = Split-Path -Parent $TargetPath
+    $temp = Join-Path $directory ".$([IO.Path]::GetFileName($TargetPath)).restore.$([Guid]::NewGuid().ToString('N')).tmp"
+    $replacedBackup = Join-Path $directory ".$([IO.Path]::GetFileName($TargetPath)).replaced.$([Guid]::NewGuid().ToString('N')).bak"
+    try {
+        Copy-Item -LiteralPath $BackupPath -Destination $temp -Force
+        if (Test-Path -LiteralPath $TargetPath -PathType Leaf) {
+            [IO.File]::Replace($temp, $TargetPath, $replacedBackup)
+        }
+        else {
+            [IO.File]::Move($temp, $TargetPath)
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $temp) {
+            Remove-Item -LiteralPath $temp -Force
+        }
+        if (Test-Path -LiteralPath $replacedBackup) {
+            Remove-Item -LiteralPath $replacedBackup -Force
+        }
+    }
+}
+
+function Invoke-CasUninstall {
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Preview,
+        [Parameter(Mandatory = $true)][string[]]$ApprovedRoots
+    )
+
+    $results = New-Object System.Collections.Generic.List[object]
+    $actions = @($Preview.actions | Where-Object actionable | Sort-Object { $_.target.Length } -Descending)
+    foreach ($action in $actions) {
+        $target = Assert-CasSafePath -Path $action.target -ApprovedRoots $ApprovedRoots -AllowBoundary
+        if (-not $PSCmdlet.ShouldProcess($target, $action.action)) {
+            continue
+        }
+
+        if ($action.action -eq "restore-backup") {
+            $backup = Assert-CasSafePath -Path $action.backupTarget -ApprovedRoots $ApprovedRoots
+            if (-not (Test-Path -LiteralPath $backup -PathType Leaf)) {
+                throw "Backup for '$($action.id)' disappeared before apply."
+            }
+            Restore-CasBackupAtomically -BackupPath $backup -TargetPath $target
+        }
+        elseif (Test-Path -LiteralPath $target -PathType Leaf) {
+            Remove-Item -LiteralPath $target -Force
+        }
+        elseif (Test-Path -LiteralPath $target -PathType Container) {
+            if (@(Get-ChildItem -LiteralPath $target -Force).Count -gt 0) {
+                throw "Created directory '$target' is not empty; refusing recursive removal."
+            }
+            Remove-Item -LiteralPath $target -Force
+        }
+
+        $results.Add([pscustomobject]@{ id = $action.id; target = $target; action = $action.action; status = "applied" })
+    }
+    $results.ToArray()
 }
 
 function Get-CasDefaultRootPath {
