@@ -32,16 +32,17 @@
                          {
                              "id":  "GOV-03",
                              "phase":  1,
-                             "status":  "planned",
+                             "status":  "verified",
                              "adrs":  [
                                           "docs/architecture/decisions/0001-windows-first-powershell.md"
                                       ],
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/Workflow.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".github/workflows/quality.yml",
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "GOV-04",
