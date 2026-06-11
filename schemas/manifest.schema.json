@@ -4,22 +4,32 @@
   "title": "CAS Workstation Manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["manifestVersion", "bundleName", "bundleId", "defaults", "profiles", "paths", "tools", "repos", "clients", "sharedMcpServer"],
+  "required": ["manifestVersion", "bundleName", "bundleId", "defaults", "policy", "profiles", "paths", "tools", "repos", "services", "clients", "skills", "workspaces", "sharedMcpServer"],
   "properties": {
     "manifestVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
     "bundleName": { "type": "string", "minLength": 1 },
     "bundleId": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-    "defaults": { "type": "object", "required": ["rootPath", "configPath", "profile"], "properties": { "rootPath": { "type": "string" }, "configPath": { "type": "string" }, "profile": { "type": "string" } }, "additionalProperties": false },
+    "defaults": { "type": "object", "required": ["rootPath", "configPath", "profile"], "properties": { "rootPath": { "type": "string", "minLength": 1 }, "configPath": { "type": "string", "minLength": 1 }, "profile": { "type": "string", "minLength": 1 } }, "additionalProperties": false },
+    "policy": { "$ref": "#/$defs/policy" },
     "profiles": { "type": "object", "minProperties": 1, "additionalProperties": { "$ref": "#/$defs/profile" } },
     "paths": { "type": "object", "minProperties": 1, "additionalProperties": { "type": "string", "minLength": 1 } },
-    "tools": { "type": "array", "items": { "$ref": "#/$defs/identified" } },
-    "repos": { "type": "array", "items": { "$ref": "#/$defs/identified" } },
-    "clients": { "type": "array", "items": { "$ref": "#/$defs/identified" } },
-    "sharedMcpServer": { "type": "object", "required": ["name", "transport", "command", "args"], "properties": { "name": { "type": "string" }, "transport": { "enum": ["stdio", "http", "sse"] }, "command": { "type": "string" }, "args": { "type": "array", "items": { "type": "string" } } }, "additionalProperties": false }
+    "tools": { "type": "array", "items": { "$ref": "#/$defs/tool" } },
+    "repos": { "type": "array", "items": { "$ref": "#/$defs/repository" } },
+    "services": { "type": "array", "items": { "$ref": "#/$defs/identified" } },
+    "clients": { "type": "array", "items": { "$ref": "#/$defs/client" } },
+    "skills": { "type": "array", "items": { "$ref": "#/$defs/identified" } },
+    "workspaces": { "type": "array", "items": { "$ref": "#/$defs/workspace" } },
+    "sharedMcpServer": { "type": "object", "required": ["name", "transport", "command", "args"], "properties": { "name": { "type": "string", "minLength": 1 }, "transport": { "enum": ["stdio", "http", "sse"] }, "command": { "type": "string", "minLength": 1 }, "args": { "type": "array", "items": { "type": "string" } } }, "additionalProperties": false }
   },
   "$defs": {
-    "identified": { "type": "object", "required": ["id"], "properties": { "id": { "type": "string", "minLength": 1 } }, "additionalProperties": true },
-    "profile": { "type": "object", "required": ["description", "tools", "repos", "services"], "properties": { "description": { "type": "string" }, "tools": { "type": "array", "items": { "type": "string" } }, "repos": { "type": "array", "items": { "type": "string" } }, "services": { "type": "array", "items": { "type": "string" } } }, "additionalProperties": false }
+    "identified": { "type": "object", "required": ["id"], "properties": { "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" } }, "additionalProperties": true },
+    "selection": { "type": "object", "required": ["required", "optional"], "properties": { "required": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }, "optional": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } } }, "additionalProperties": false },
+    "profile": { "type": "object", "required": ["description", "tools", "repos", "services", "clients", "skills", "workspaces"], "properties": { "description": { "type": "string", "minLength": 1 }, "tools": { "$ref": "#/$defs/selection" }, "repos": { "$ref": "#/$defs/selection" }, "services": { "$ref": "#/$defs/selection" }, "clients": { "$ref": "#/$defs/selection" }, "skills": { "$ref": "#/$defs/selection" }, "workspaces": { "$ref": "#/$defs/selection" } }, "additionalProperties": false },
+    "policy": { "type": "object", "required": ["allowedInstallerKinds", "allowedCommands", "allowedRepositoryPrefixes", "allowedConfigTargets"], "properties": { "allowedInstallerKinds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["winget", "scoop", "npm", "manual"] } }, "allowedCommands": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }, "allowedRepositoryPrefixes": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^https://.+" } }, "allowedConfigTargets": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[^\\\\/:*?\"<>|]+$" } } }, "additionalProperties": false },
+    "installer": { "type": "object", "required": ["kind"], "properties": { "kind": { "enum": ["winget", "scoop", "npm", "manual"] }, "id": { "type": "string", "minLength": 1 }, "hint": { "type": "string", "minLength": 1 } }, "additionalProperties": false },
+    "tool": { "type": "object", "required": ["id", "displayName", "command", "versionArgs", "versionPattern", "minimumVersion", "installers"], "properties": { "id": { "type": "string", "minLength": 1 }, "displayName": { "type": "string", "minLength": 1 }, "command": { "type": "string", "minLength": 1 }, "versionArgs": { "type": "array", "items": { "type": "string" } }, "versionPattern": { "type": "string", "minLength": 1 }, "minimumVersion": { "type": "string", "minLength": 1 }, "installers": { "type": "array", "items": { "$ref": "#/$defs/installer" } } }, "additionalProperties": false },
+    "repository": { "type": "object", "required": ["id", "url", "defaultBranch"], "properties": { "id": { "type": "string", "minLength": 1 }, "url": { "type": "string", "pattern": "^https://.+\\.git$" }, "defaultBranch": { "type": "string", "minLength": 1 } }, "additionalProperties": false },
+    "client": { "type": "object", "required": ["id", "fileName"], "properties": { "id": { "type": "string", "minLength": 1 }, "fileName": { "type": "string", "pattern": "^[^\\\\/:*?\"<>|]+$" } }, "additionalProperties": false },
+    "workspace": { "type": "object", "required": ["id", "relativePath"], "properties": { "id": { "type": "string", "minLength": 1 }, "relativePath": { "type": "string", "minLength": 1 } }, "additionalProperties": false }
   }
 }
-

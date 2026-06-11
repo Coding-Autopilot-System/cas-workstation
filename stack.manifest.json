@@ -7,62 +7,30 @@
     "configPath": "C:\\Users\\KimHarjamaki\\.cas",
     "profile": "full"
   },
+  "policy": {
+    "allowedInstallerKinds": ["winget", "scoop", "npm", "manual"],
+    "allowedCommands": ["git", "gh", "node", "npm", "python", "uv", "dotnet", "docker", "az", "wsl.exe", "codex", "claude", "gemini"],
+    "allowedRepositoryPrefixes": ["https://github.com/Coding-Autopilot-System/"],
+    "allowedConfigTargets": ["codex.mcp.json", "claude.settings.fragment.json", "gemini.mcp.json"]
+  },
   "profiles": {
     "core": {
       "description": "Base workstation for AI-native coding.",
-      "tools": [
-        "git",
-        "gh",
-        "node",
-        "npm",
-        "python",
-        "uv",
-        "dotnet",
-        "docker",
-        "az",
-        "wsl",
-        "codex",
-        "claude",
-        "gemini"
-      ],
-      "repos": [
-        "Promptimprover",
-        "autogen",
-        "gsd-orchestrator"
-      ],
-      "services": [
-        "docker-daemon",
-        "gh-auth"
-      ]
+      "tools": { "required": ["git", "gh", "node", "npm", "python", "uv", "dotnet", "docker", "az", "wsl", "codex", "claude", "gemini"], "optional": [] },
+      "repos": { "required": ["Promptimprover", "autogen", "gsd-orchestrator"], "optional": [] },
+      "services": { "required": ["docker-daemon", "gh-auth"], "optional": [] },
+      "clients": { "required": ["codex", "claude", "gemini"], "optional": [] },
+      "skills": { "required": [], "optional": ["prompt-refiner"] },
+      "workspaces": { "required": [], "optional": ["cas-default"] }
     },
     "full": {
       "description": "Full workstation with org automation components.",
-      "tools": [
-        "git",
-        "gh",
-        "node",
-        "npm",
-        "python",
-        "uv",
-        "dotnet",
-        "docker",
-        "az",
-        "wsl",
-        "codex",
-        "claude",
-        "gemini"
-      ],
-      "repos": [
-        "Promptimprover",
-        "autogen",
-        "gsd-orchestrator",
-        "autopilot-core",
-        "ci-autopilot"
-      ],
-      "services": [
-        "docker-daemon",
-        "gh-auth"
-      ]
+      "tools": { "required": ["git", "gh", "node", "npm", "python", "uv", "dotnet", "docker", "az", "wsl", "codex", "claude", "gemini"], "optional": [] },
+      "repos": { "required": ["Promptimprover", "autogen", "gsd-orchestrator", "autopilot-core", "ci-autopilot"], "optional": [] },
+      "services": { "required": ["docker-daemon", "gh-auth"], "optional": [] },
+      "clients": { "required": ["codex", "claude", "gemini"], "optional": [] },
+      "skills": { "required": ["prompt-refiner"], "optional": [] },
+      "workspaces": { "required": ["cas-default"], "optional": [] }
     }
   },
   "paths": {
@@ -333,6 +301,10 @@
       "defaultBranch": "main"
     }
   ],
+  "services": [
+    { "id": "docker-daemon" },
+    { "id": "gh-auth" }
+  ],
   "clients": [
     {
       "id": "codex",
@@ -345,6 +317,18 @@
     {
       "id": "gemini",
       "fileName": "gemini.mcp.json"
+    }
+  ],
+  "skills": [
+    {
+      "id": "prompt-refiner",
+      "repo": "Promptimprover"
+    }
+  ],
+  "workspaces": [
+    {
+      "id": "cas-default",
+      "relativePath": "workspaces\\default"
     }
   ],
   "sharedMcpServer": {
