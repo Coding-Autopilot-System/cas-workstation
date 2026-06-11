@@ -235,6 +235,239 @@ function Get-CasCompatibilityReport {
     }
 }
 
+function Resolve-CasCanonicalPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    try {
+        $fullPath = [IO.Path]::GetFullPath($Path)
+    }
+    catch {
+        throw "Path '$Path' cannot be canonicalized: $($_.Exception.Message)"
+    }
+
+    $root = [IO.Path]::GetPathRoot($fullPath)
+    if ($fullPath.Length -gt $root.Length) {
+        $fullPath = $fullPath.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    }
+    $fullPath
+}
+
+function Get-CasForbiddenPaths {
+    $paths = New-Object System.Collections.Generic.List[string]
+    foreach ($candidate in @($env:USERPROFILE, $env:SystemRoot, $env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:ProgramData)) {
+        if ($candidate) {
+            $paths.Add((Resolve-CasCanonicalPath -Path $candidate))
+        }
+    }
+    foreach ($drive in [IO.DriveInfo]::GetDrives()) {
+        $paths.Add((Resolve-CasCanonicalPath -Path $drive.RootDirectory.FullName))
+    }
+    $paths.ToArray() | Sort-Object -Unique
+}
+
+function Test-CasPathHasReparsePoint {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$StopAt
+    )
+
+    $current = Resolve-CasCanonicalPath -Path $Path
+    $stop = Resolve-CasCanonicalPath -Path $StopAt
+    while ($current.StartsWith($stop, [StringComparison]::OrdinalIgnoreCase)) {
+        if (Test-Path -LiteralPath $current) {
+            $item = Get-Item -LiteralPath $current -Force
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                return $true
+            }
+        }
+        if ($current.Equals($stop, [StringComparison]::OrdinalIgnoreCase)) {
+            break
+        }
+        $parent = Split-Path -Parent $current
+        if (-not $parent -or $parent -eq $current) {
+            break
+        }
+        $current = $parent
+    }
+    $false
+}
+
+function Assert-CasSafePath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string[]]$ApprovedRoots,
+        [switch]$AllowBoundary
+    )
+
+    $canonical = Resolve-CasCanonicalPath -Path $Path
+    $approved = $null
+    foreach ($rootPath in $ApprovedRoots) {
+        $root = Resolve-CasCanonicalPath -Path $rootPath
+        $prefix = "$root$([IO.Path]::DirectorySeparatorChar)"
+        if ($canonical.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) -or ($AllowBoundary -and $canonical.Equals($root, [StringComparison]::OrdinalIgnoreCase))) {
+            $approved = $root
+            break
+        }
+    }
+    if (-not $approved) {
+        throw "Path '$canonical' is outside approved CAS boundaries."
+    }
+
+    foreach ($forbidden in Get-CasForbiddenPaths) {
+        if ($canonical.Equals($forbidden, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Path '$canonical' is a forbidden root."
+        }
+    }
+
+    foreach ($systemRoot in @($env:SystemRoot, $env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:ProgramData)) {
+        if ($systemRoot) {
+            $forbidden = Resolve-CasCanonicalPath -Path $systemRoot
+            if ($canonical.StartsWith("$forbidden$([IO.Path]::DirectorySeparatorChar)", [StringComparison]::OrdinalIgnoreCase)) {
+                throw "Path '$canonical' is inside a forbidden system directory."
+            }
+        }
+    }
+
+    if (Test-CasPathHasReparsePoint -Path $canonical -StopAt $approved) {
+        throw "Path '$canonical' or an existing ancestor is a reparse point."
+    }
+    $canonical
+}
+
+function New-CasManagedState {
+    param(
+        [Parameter(Mandatory = $true)][string]$BundleId,
+        [Parameter(Mandatory = $true)][string]$Profile,
+        [Parameter(Mandatory = $true)][string]$DesiredStateDigest
+    )
+
+    [pscustomobject]@{
+        schemaVersion = "1.0.0"
+        bundleId = $BundleId
+        profile = $Profile
+        desiredStateDigest = $DesiredStateDigest
+        resources = @()
+        operations = @()
+    }
+}
+
+function Add-CasManagedResource {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$State,
+        [Parameter(Mandatory = $true)][string]$Id,
+        [Parameter(Mandatory = $true)][ValidateSet("directory", "file", "repository", "configuration", "tool")][string]$Kind,
+        [Parameter(Mandatory = $true)][ValidateSet("created", "modified", "observed")][string]$Ownership,
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)][bool]$WasPresentBefore,
+        [string]$BackupTarget,
+        [string]$ContentDigest
+    )
+
+    if ($Ownership -eq "created" -and $WasPresentBefore) {
+        throw "Resource '$Id' cannot be owned as created because it existed before CAS management."
+    }
+    if ($Ownership -eq "modified" -and (-not $WasPresentBefore -or -not $BackupTarget)) {
+        throw "Modified resource '$Id' requires pre-existing evidence and a backup target."
+    }
+    if (@($State.resources | Where-Object id -eq $Id).Count -gt 0) {
+        throw "Managed resource id '$Id' already exists."
+    }
+
+    $State.resources += [pscustomobject]@{
+        id = $Id
+        kind = $Kind
+        ownership = $Ownership
+        target = Resolve-CasCanonicalPath -Path $Target
+        wasPresentBefore = $WasPresentBefore
+        backupTarget = if ($BackupTarget) { Resolve-CasCanonicalPath -Path $BackupTarget } else { $null }
+        contentDigest = if ($ContentDigest) { $ContentDigest } else { $null }
+    }
+    $State
+}
+
+function Assert-CasManagedState {
+    param([Parameter(Mandatory = $true)][pscustomobject]$State)
+
+    if ($State.schemaVersion -ne "1.0.0" -or $State.desiredStateDigest -notmatch '^sha256:[a-f0-9]{64}$') {
+        throw "Managed state has an invalid schema version or desired-state digest."
+    }
+    if (@($State.resources | ForEach-Object id | Group-Object | Where-Object Count -gt 1).Count -gt 0) {
+        throw "Managed state contains duplicate resource ids."
+    }
+    foreach ($resource in @($State.resources)) {
+        if ($resource.ownership -eq "created" -and $resource.wasPresentBefore) {
+            throw "Created resource '$($resource.id)' has conflicting pre-existing evidence."
+        }
+        if ($resource.ownership -eq "modified" -and (-not $resource.wasPresentBefore -or -not $resource.backupTarget)) {
+            throw "Modified resource '$($resource.id)' is missing backup evidence."
+        }
+    }
+}
+
+function Write-CasAtomicJson {
+    param(
+        [Parameter(Mandatory = $true)][object]$InputObject,
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string[]]$ApprovedRoots,
+        [switch]$AllowBoundary
+    )
+
+    $target = Assert-CasSafePath -Path $Path -ApprovedRoots $ApprovedRoots -AllowBoundary:$AllowBoundary
+    $directory = Split-Path -Parent $target
+    if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+        throw "Atomic write parent directory does not exist: $directory"
+    }
+
+    $json = $InputObject | ConvertTo-Json -Depth 30
+    $null = $json | ConvertFrom-Json
+    $temp = Join-Path $directory ".$([IO.Path]::GetFileName($target)).$([Guid]::NewGuid().ToString('N')).tmp"
+    $backup = $null
+    try {
+        [IO.File]::WriteAllText($temp, $json, (New-Object Text.UTF8Encoding($false)))
+        $null = Get-Content -LiteralPath $temp -Raw | ConvertFrom-Json
+        if (Test-Path -LiteralPath $target -PathType Leaf) {
+            $backup = "$target.backup.$([DateTime]::UtcNow.ToString('yyyyMMddHHmmssfff'))"
+            [IO.File]::Replace($temp, $target, $backup)
+        }
+        else {
+            [IO.File]::Move($temp, $target)
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $temp) {
+            Remove-Item -LiteralPath $temp -Force
+        }
+    }
+    $backup
+}
+
+function Write-CasManagedState {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$State,
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string[]]$ApprovedRoots
+    )
+
+    Assert-CasManagedState -State $State
+    Write-CasAtomicJson -InputObject $State -Path $Path -ApprovedRoots $ApprovedRoots
+}
+
+function Read-CasManagedState {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "Managed state was not found: $Path"
+    }
+    try {
+        $state = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    }
+    catch {
+        throw "Managed state '$Path' is not valid JSON: $($_.Exception.Message)"
+    }
+    Assert-CasManagedState -State $state
+    $state
+}
+
 function Get-CasDefaultRootPath {
     param(
         [pscustomobject]$Manifest = (Get-CasManifest)
