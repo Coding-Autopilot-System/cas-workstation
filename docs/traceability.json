@@ -18,16 +18,16 @@
                          {
                              "id":  "GOV-02",
                              "phase":  1,
-                             "status":  "planned",
+                             "status":  "verified",
                              "adrs":  [
                                           "docs/architecture/decisions/0001-windows-first-powershell.md"
                                       ],
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/QualityCommand.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "GOV-03",
