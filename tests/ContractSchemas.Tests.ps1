@@ -10,7 +10,7 @@ Describe "CAS JSON contract schemas" {
 
     It "fails closed for a missing schema" {
         $fixture = Join-Path $PSScriptRoot "fixtures\contracts\doctor.valid.json"
-        { & $script:validator -SchemaPath "missing.schema.json" -InstancePath $fixture } | Should -Throw
+        { & $script:validator -SchemaPath "missing.schema.json" -InstancePath $fixture 2>$null } | Should -Throw
     }
 
     It "contains a positive and negative fixture for every schema" {
