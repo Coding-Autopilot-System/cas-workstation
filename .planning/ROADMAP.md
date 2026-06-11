@@ -18,7 +18,7 @@ CAS Workstation v1 progresses from a functional seed to a trustworthy desired-st
 
 ## Phase Details
 
-### Phase 1: Governance and Quality Foundation
+### Phase 1: Governance and Quality Foundation (Complete: 2026-06-11)
 
 **Goal:** Every later change is constrained by schemas, tests, static quality, CI, and requirement traceability.
 

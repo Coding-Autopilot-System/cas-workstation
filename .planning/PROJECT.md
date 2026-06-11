@@ -16,10 +16,10 @@ An AI developer can run one safe, repeatable workflow and receive a complete, wo
 - ✓ PowerShell entry points exist for setup, doctor, start, upgrade, and uninstall — existing seed
 - ✓ Doctor can emit human-readable and JSON readiness output — existing seed
 - ✓ The seed can discover tools, repositories, and basic service health — existing seed
+- ✓ Governance, schemas, Pester, static analysis, Windows CI, ADRs, and requirement traceability — validated in Phase 1
 
 ### Active
 
-- [ ] Establish governance, CI, schemas, and a comprehensive Pester test foundation.
 - [ ] Make manifest parsing, allowlisting, path handling, and destructive operations fail closed.
 - [ ] Make setup and upgrade idempotent, observable, transactional, and recoverable after partial failure.
 - [ ] Generate and merge profile-specific AI client, MCP, skill, workspace, and service configuration without overwriting unrelated user state.
@@ -82,4 +82,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update context with evidence, users, feedback, and operational metrics.
 
 ---
-*Last updated: 2026-06-11 after initialization*
+*Last updated: 2026-06-11 after Phase 1 completion*
