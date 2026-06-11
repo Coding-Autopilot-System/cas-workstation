@@ -1,0 +1,496 @@
+﻿{
+    "schemaVersion":  "1.0.0",
+    "requirements":  [
+                         {
+                             "id":  "GOV-01",
+                             "phase":  1,
+                             "status":  "verified",
+                             "adrs":  {
+
+                                      },
+                             "tests":  [
+                                           "tests/ContractSchemas.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\scripts\\Test-CasJsonSchema.ps1 -AllFixtures"
+                                          ]
+                         },
+                         {
+                             "id":  "GOV-02",
+                             "phase":  1,
+                             "status":  "verified",
+                             "adrs":  [
+                                          "docs/architecture/decisions/0001-windows-first-powershell.md"
+                                      ],
+                             "tests":  [
+                                           "tests/QualityCommand.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
+                         },
+                         {
+                             "id":  "GOV-03",
+                             "phase":  1,
+                             "status":  "verified",
+                             "adrs":  [
+                                          "docs/architecture/decisions/0001-windows-first-powershell.md"
+                                      ],
+                             "tests":  [
+                                           "tests/Workflow.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".github/workflows/quality.yml",
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
+                         },
+                         {
+                             "id":  "GOV-04",
+                             "phase":  1,
+                             "status":  "verified",
+                             "adrs":  {
+
+                                      },
+                             "tests":  [
+                                           "tests/Governance.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\scripts\\Test-CasGovernance.ps1"
+                                          ]
+                         },
+                         {
+                             "id":  "MAN-01",
+                             "phase":  2,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "MAN-02",
+                             "phase":  2,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "MAN-03",
+                             "phase":  2,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "MAN-04",
+                             "phase":  2,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "MAN-05",
+                             "phase":  2,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "SAFE-01",
+                             "phase":  2,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "SAFE-02",
+                             "phase":  2,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "SAFE-03",
+                             "phase":  2,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "SAFE-04",
+                             "phase":  2,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "SAFE-05",
+                             "phase":  2,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "OPS-01",
+                             "phase":  3,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "OPS-02",
+                             "phase":  3,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "OPS-03",
+                             "phase":  3,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "OPS-04",
+                             "phase":  3,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "OPS-05",
+                             "phase":  3,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "OPS-06",
+                             "phase":  3,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "OPS-07",
+                             "phase":  3,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "CFG-01",
+                             "phase":  4,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "CFG-02",
+                             "phase":  4,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "CFG-03",
+                             "phase":  4,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "CFG-04",
+                             "phase":  4,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "CFG-05",
+                             "phase":  4,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "DIAG-01",
+                             "phase":  5,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "DIAG-02",
+                             "phase":  5,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "DIAG-03",
+                             "phase":  5,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "DIAG-04",
+                             "phase":  5,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "DIAG-05",
+                             "phase":  5,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "REL-01",
+                             "phase":  6,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "REL-02",
+                             "phase":  6,
+                             "status":  "pending",
+                             "adrs":  [
+                                          "docs/architecture/decisions/0001-windows-first-powershell.md"
+                                      ],
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "REL-03",
+                             "phase":  7,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         },
+                         {
+                             "id":  "REL-04",
+                             "phase":  7,
+                             "status":  "pending",
+                             "adrs":  {
+
+                                      },
+                             "tests":  {
+
+                                       },
+                             "evidence":  {
+
+                                          }
+                         }
+                     ]
+}

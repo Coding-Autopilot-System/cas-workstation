@@ -1,0 +1,5 @@
+@{
+    Severity = @("Error")
+    IncludeDefaultRules = $true
+}
+

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://coding-autopilot-system.github.io/cas-workstation/schemas/operation-plan.schema.json",
+  "title": "CAS Workstation Operation Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "planId", "correlationId", "profile", "desiredStateDigest", "operations"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "planId": { "type": "string", "minLength": 1 },
+    "correlationId": { "type": "string", "minLength": 1 },
+    "profile": { "type": "string", "minLength": 1 },
+    "desiredStateDigest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "operations": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["id", "kind", "target", "risk", "action"], "properties": { "id": { "type": "string" }, "kind": { "type": "string" }, "target": { "type": "string" }, "risk": { "enum": ["low", "medium", "high"] }, "action": { "enum": ["create", "update", "remove", "skip"] } } } }
+  }
+}
+

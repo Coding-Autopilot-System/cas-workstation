@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 
 function Get-CasModuleRoot {
     Split-Path -Parent $PSScriptRoot
@@ -372,6 +372,7 @@ function Get-CasDoctorReport {
     $recommendations = @(Get-CasRecommendations -ToolStatuses $toolStatuses -ServiceStatuses $serviceStatuses -RepoStatuses $repoStatuses)
 
     [pscustomobject]@{
+        schemaVersion = "1.0.0"
         bundleId = $Manifest.bundleId
         generatedAtUtc = [DateTime]::UtcNow.ToString("o")
         profile = $Profile
@@ -540,3 +541,5 @@ function Start-CasRuntime {
 }
 
 Export-ModuleMember -Function *-Cas*
+
+

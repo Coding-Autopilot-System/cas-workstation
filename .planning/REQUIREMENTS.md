@@ -7,10 +7,10 @@
 
 ### Governance and Contracts
 
-- [ ] **GOV-01**: Maintainer can validate manifest, managed state, operation plan, doctor report, event log, and support-bundle metadata against versioned JSON schemas.
-- [ ] **GOV-02**: Contributor can run Pester, PSScriptAnalyzer, schema validation, and documentation checks locally through one documented command.
-- [ ] **GOV-03**: Pull requests run required Windows CI checks with least-privilege permissions, pinned actions, timeouts, and retained evidence.
-- [ ] **GOV-04**: Maintainer can trace requirements to phases, tests, architecture decisions, and release evidence.
+- [x] **GOV-01**: Maintainer can validate manifest, managed state, operation plan, doctor report, event log, and support-bundle metadata against versioned JSON schemas.
+- [x] **GOV-02**: Contributor can run Pester, PSScriptAnalyzer, schema validation, and documentation checks locally through one documented command.
+- [x] **GOV-03**: Pull requests run required Windows CI checks with least-privilege permissions, pinned actions, timeouts, and retained evidence.
+- [x] **GOV-04**: Maintainer can trace requirements to phases, tests, architecture decisions, and release evidence.
 
 ### Manifest and Profiles
 
@@ -88,10 +88,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| GOV-01 | Phase 1 | Pending |
-| GOV-02 | Phase 1 | Pending |
-| GOV-03 | Phase 1 | Pending |
-| GOV-04 | Phase 1 | Pending |
+| GOV-01 | Phase 1 | Complete |
+| GOV-02 | Phase 1 | Complete |
+| GOV-03 | Phase 1 | Complete |
+| GOV-04 | Phase 1 | Complete |
 | MAN-01 | Phase 2 | Pending |
 | MAN-02 | Phase 2 | Pending |
 | MAN-03 | Phase 2 | Pending |

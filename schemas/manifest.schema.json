@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://coding-autopilot-system.github.io/cas-workstation/schemas/manifest.schema.json",
+  "title": "CAS Workstation Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifestVersion", "bundleName", "bundleId", "defaults", "profiles", "paths", "tools", "repos", "clients", "sharedMcpServer"],
+  "properties": {
+    "manifestVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "bundleName": { "type": "string", "minLength": 1 },
+    "bundleId": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "defaults": { "type": "object", "required": ["rootPath", "configPath", "profile"], "properties": { "rootPath": { "type": "string" }, "configPath": { "type": "string" }, "profile": { "type": "string" } }, "additionalProperties": false },
+    "profiles": { "type": "object", "minProperties": 1, "additionalProperties": { "$ref": "#/$defs/profile" } },
+    "paths": { "type": "object", "minProperties": 1, "additionalProperties": { "type": "string", "minLength": 1 } },
+    "tools": { "type": "array", "items": { "$ref": "#/$defs/identified" } },
+    "repos": { "type": "array", "items": { "$ref": "#/$defs/identified" } },
+    "clients": { "type": "array", "items": { "$ref": "#/$defs/identified" } },
+    "sharedMcpServer": { "type": "object", "required": ["name", "transport", "command", "args"], "properties": { "name": { "type": "string" }, "transport": { "enum": ["stdio", "http", "sse"] }, "command": { "type": "string" }, "args": { "type": "array", "items": { "type": "string" } } }, "additionalProperties": false }
+  },
+  "$defs": {
+    "identified": { "type": "object", "required": ["id"], "properties": { "id": { "type": "string", "minLength": 1 } }, "additionalProperties": true },
+    "profile": { "type": "object", "required": ["description", "tools", "repos", "services"], "properties": { "description": { "type": "string" }, "tools": { "type": "array", "items": { "type": "string" } }, "repos": { "type": "array", "items": { "type": "string" } }, "services": { "type": "array", "items": { "type": "string" } } }, "additionalProperties": false }
+  }
+}
+
