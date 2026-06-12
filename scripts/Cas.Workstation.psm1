@@ -1000,7 +1000,12 @@ function Get-CasOperationInventory {
     }
     foreach ($repo in Get-CasProfileRepos -Profile $Profile -Manifest $Manifest) {
         $path = Join-Path (Join-Path $RootPath $Manifest.paths.reposRoot) $repo.id
-        $status = if (Test-Path -LiteralPath $path -PathType Container) { "present" } else { "missing" }
+        $status = if (Test-Path -LiteralPath $path -PathType Container) {
+            (Get-CasRepositorySafetyStatus -Path $path -ExpectedOrigin $repo.url -ExpectedBranch $repo.defaultBranch).status
+        }
+        else {
+            "missing"
+        }
         $null = $resources.Add([pscustomobject]@{ id = "repo:$($repo.id)"; status = $status; detail = $path })
     }
     [pscustomobject]@{ resources = $resources.ToArray() }
@@ -1045,7 +1050,7 @@ function New-CasOperationPlan {
             "repos" {
                 $target = Join-Path (Join-Path $RootPath $Manifest.paths.reposRoot) $resource.id
                 $satisfied = $actual.Count -gt 0 -and $actual[0].status -eq "synchronized"
-                $present = $actual.Count -gt 0 -and $actual[0].status -in @("present", "synchronized")
+                $present = $actual.Count -gt 0 -and $actual[0].status -in @("present", "behind", "synchronized")
                 $null = $operations.Add([ordered]@{
                     id = "repo:$($resource.id)"
                     kind = "repository"
@@ -1093,6 +1098,19 @@ function Assert-CasOperationPlan {
     }
     if ($Plan.desiredStateDigest -notmatch '^sha256:[a-f0-9]{64}$') {
         throw "Operation plan has an invalid desired-state digest."
+    }
+    $identity = [ordered]@{
+        schemaVersion = $Plan.schemaVersion
+        mode = $Plan.mode
+        profile = $Plan.profile
+        rootPath = $Plan.rootPath
+        configPath = $Plan.configPath
+        desiredStateDigest = $Plan.desiredStateDigest
+        operations = @($Plan.operations)
+    }
+    $expectedPlanId = Get-CasSha256 -Value (ConvertTo-CasCanonicalJson -InputObject $identity)
+    if ($Plan.planId -ne $expectedPlanId) {
+        throw "Operation plan integrity validation failed."
     }
     if (@($Plan.operations | ForEach-Object id | Group-Object | Where-Object Count -gt 1).Count -gt 0) {
         throw "Operation plan contains duplicate operation ids."
@@ -1157,6 +1175,7 @@ function New-CasOperationJournal {
         maxRetries = $MaxRetries
         startedAtUtc = [DateTime]::UtcNow.ToString("o")
         completedAtUtc = $null
+        plan = $Plan
         operations = @($Plan.operations | ForEach-Object {
             [pscustomobject]@{
                 id = $_.id
@@ -1215,8 +1234,12 @@ function Invoke-CasPlannedOperation {
             & git clone $Operation.source $Operation.target
         }
         else {
+            $null = Get-CasRepositorySafetyStatus -Path $Operation.target -ExpectedOrigin $Operation.source -ExpectedBranch $Operation.defaultBranch
             & git -C $Operation.target fetch origin
-            if ($LASTEXITCODE -eq 0) { & git -C $Operation.target merge --ff-only "origin/$($Operation.defaultBranch)" }
+            if ($LASTEXITCODE -eq 0) {
+                $null = Get-CasRepositorySafetyStatus -Path $Operation.target -ExpectedOrigin $Operation.source -ExpectedBranch $Operation.defaultBranch
+                & git -C $Operation.target merge --ff-only "origin/$($Operation.defaultBranch)"
+            }
         }
         if ($LASTEXITCODE -ne 0) { throw "Repository operation '$($Operation.id)' failed with exit code $LASTEXITCODE." }
         return
@@ -1313,6 +1336,109 @@ function Invoke-CasOperationPlan {
     $journal
 }
 
+function ConvertFrom-CasGitRepositoryEvidence {
+    param(
+        [Parameter(Mandatory = $true)][string]$ExpectedOrigin,
+        [Parameter(Mandatory = $true)][string]$ExpectedBranch,
+        [string]$ActualOrigin,
+        [string]$ActualBranch,
+        [string]$PorcelainStatus,
+        [ValidateRange(0, [int]::MaxValue)][int]$Ahead = 0,
+        [ValidateRange(0, [int]::MaxValue)][int]$Behind = 0
+    )
+
+    if ($ActualOrigin -ne $ExpectedOrigin) {
+        throw "Repository origin '$ActualOrigin' does not match expected origin '$ExpectedOrigin'."
+    }
+    if (-not $ActualBranch) {
+        throw "Repository is in detached HEAD state."
+    }
+    if ($ActualBranch -ne $ExpectedBranch) {
+        throw "Repository branch '$ActualBranch' does not match expected branch '$ExpectedBranch'."
+    }
+    if ($PorcelainStatus) {
+        throw "Repository has uncommitted changes and cannot be synchronized safely."
+    }
+    if ($Ahead -gt 0) {
+        throw "Repository has local commits or diverged history and cannot be reconciled automatically."
+    }
+
+    [pscustomobject]@{
+        status = if ($Behind -gt 0) { "behind" } else { "synchronized" }
+        ahead = $Ahead
+        behind = $Behind
+        branch = $ActualBranch
+        origin = $ActualOrigin
+    }
+}
+
+function Get-CasRepositorySafetyStatus {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$ExpectedOrigin,
+        [Parameter(Mandatory = $true)][string]$ExpectedBranch
+    )
+
+    $git = Get-Command git -ErrorAction Stop
+    $actualOrigin = (& $git.Source -C $Path remote get-url origin 2>$null | Select-Object -First 1)
+    if ($LASTEXITCODE -ne 0) { throw "Repository at '$Path' does not have a readable origin." }
+    $actualBranch = (& $git.Source -C $Path symbolic-ref --quiet --short HEAD 2>$null | Select-Object -First 1)
+    $porcelain = [string]::Join([Environment]::NewLine, @(& $git.Source -C $Path status --porcelain 2>$null))
+    $counts = [string]::Join(" ", @(& $git.Source -C $Path rev-list --left-right --count "HEAD...origin/$ExpectedBranch" 2>$null)).Trim() -split '\s+'
+    if ($LASTEXITCODE -ne 0 -or $counts.Count -ne 2) {
+        throw "Repository at '$Path' cannot prove its relationship to origin/$ExpectedBranch."
+    }
+    ConvertFrom-CasGitRepositoryEvidence -ExpectedOrigin $ExpectedOrigin -ExpectedBranch $ExpectedBranch -ActualOrigin $actualOrigin -ActualBranch $actualBranch -PorcelainStatus $porcelain -Ahead ([int]$counts[0]) -Behind ([int]$counts[1])
+}
+
+function Invoke-CasWorkstationOperation {
+    param(
+        [ValidateSet("setup", "upgrade", "repair")][string]$Mode,
+        [ValidateSet("core", "full")][string]$Profile = "full",
+        [string]$RootPath,
+        [string]$ConfigPath,
+        [switch]$Apply,
+        [switch]$Resume,
+        [pscustomobject]$Inventory,
+        [scriptblock]$OperationHandler,
+        [pscustomobject]$Manifest = (Get-CasManifest)
+    )
+
+    if (-not $RootPath) { $RootPath = Get-CasDefaultRootPath -Manifest $Manifest }
+    if (-not $ConfigPath) { $ConfigPath = Get-CasDefaultConfigPath -Manifest $Manifest }
+    if ($Resume -and -not $Apply) {
+        throw "Resume requires explicit apply intent."
+    }
+    if ($Resume) {
+        $stateRoot = Join-Path $ConfigPath $Manifest.paths.state
+        $failedJournal = @(Get-ChildItem -LiteralPath $stateRoot -Filter "operation-*.json" -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTimeUtc -Descending | ForEach-Object {
+            $candidate = Read-CasOperationJournal -Path $_.FullName
+            if ($candidate.status -eq "failed" -and $candidate.plan.mode -eq $Mode -and $candidate.plan.profile -eq $Profile) {
+                $candidate
+            }
+        } | Select-Object -First 1)
+        if ($failedJournal.Count -eq 0) {
+            throw "No failed $Mode operation journal was found for profile '$Profile'."
+        }
+        if ($OperationHandler) {
+            return Invoke-CasOperationPlan -Plan $failedJournal[0].plan -ConfigPath $ConfigPath -Resume -Manifest $Manifest -OperationHandler $OperationHandler
+        }
+        return Invoke-CasOperationPlan -Plan $failedJournal[0].plan -ConfigPath $ConfigPath -Resume -Manifest $Manifest
+    }
+    if (-not $Inventory) {
+        $Inventory = Get-CasOperationInventory -Profile $Profile -RootPath $RootPath -Manifest $Manifest
+    }
+    $plan = New-CasOperationPlan -Mode $Mode -Profile $Profile -RootPath $RootPath -ConfigPath $ConfigPath -Manifest $Manifest -Inventory $Inventory
+    if (-not $Apply) {
+        return $plan
+    }
+
+    if ($OperationHandler) {
+        return Invoke-CasOperationPlan -Plan $plan -ConfigPath $ConfigPath -Manifest $Manifest -OperationHandler $OperationHandler
+    }
+    Invoke-CasOperationPlan -Plan $plan -ConfigPath $ConfigPath -Manifest $Manifest
+}
+
 function Install-CasTool {
     param(
         [pscustomobject]$Tool
@@ -1379,10 +1505,17 @@ function Sync-CasRepo {
         return
     }
 
+    $null = Get-CasRepositorySafetyStatus -Path $repoPath -ExpectedOrigin $Repo.url -ExpectedBranch $Repo.defaultBranch
     Write-Host "[update] $($Repo.id)"
     & $git.Source -C $repoPath fetch origin
-    & $git.Source -C $repoPath checkout $Repo.defaultBranch
-    & $git.Source -C $repoPath pull --ff-only origin $Repo.defaultBranch
+    if ($LASTEXITCODE -ne 0) {
+        throw "Fetch failed for repository '$($Repo.id)'."
+    }
+    $null = Get-CasRepositorySafetyStatus -Path $repoPath -ExpectedOrigin $Repo.url -ExpectedBranch $Repo.defaultBranch
+    & $git.Source -C $repoPath merge --ff-only "origin/$($Repo.defaultBranch)"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Fast-forward failed for repository '$($Repo.id)'."
+    }
 }
 
 function New-CasClientConfigs {

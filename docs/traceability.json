@@ -1,4 +1,4 @@
-{
+﻿{
     "schemaVersion":  "1.0.0",
     "requirements":  [
                          {
@@ -201,100 +201,101 @@
                          {
                              "id":  "OPS-01",
                              "phase":  3,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/Plan.Tests.ps1",
+                                           "tests/OperationWorkflow.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "OPS-02",
                              "phase":  3,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/Plan.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "OPS-03",
                              "phase":  3,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/Plan.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "OPS-04",
                              "phase":  3,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/Apply.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "OPS-05",
                              "phase":  3,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/Apply.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "OPS-06",
                              "phase":  3,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/RepositorySafety.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "OPS-07",
                              "phase":  3,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  [
+                                           "tests/OperationWorkflow.Tests.ps1"
+                                       ],
+                             "evidence":  [
+                                              ".\\Invoke-Quality.ps1"
+                                          ]
                          },
                          {
                              "id":  "CFG-01",

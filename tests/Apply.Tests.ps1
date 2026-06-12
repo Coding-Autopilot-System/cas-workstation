@@ -5,8 +5,8 @@ BeforeAll {
     $script:config = Join-Path $script:root "config"
     $script:plan = [pscustomobject]@{
         schemaVersion = "1.0.0"
-        planId = "sha256:$('a' * 64)"
-        correlationId = "sha256:$('a' * 64)"
+        planId = $null
+        correlationId = $null
         mode = "repair"
         profile = "core"
         rootPath = $script:root
@@ -17,6 +17,17 @@ BeforeAll {
             [pscustomobject]@{ id = "tool:done"; kind = "tool"; target = "done"; risk = "low"; action = "skip"; command = "none"; source = "inventory"; reason = "satisfied" }
         )
     }
+    $identity = [ordered]@{
+        schemaVersion = $script:plan.schemaVersion
+        mode = $script:plan.mode
+        profile = $script:plan.profile
+        rootPath = $script:plan.rootPath
+        configPath = $script:plan.configPath
+        desiredStateDigest = $script:plan.desiredStateDigest
+        operations = $script:plan.operations
+    }
+    $script:plan.planId = Get-CasSha256 -Value (ConvertTo-CasCanonicalJson -InputObject $identity)
+    $script:plan.correlationId = $script:plan.planId
 }
 
 Describe "CAS journaled plan apply" {
@@ -50,5 +61,12 @@ Describe "CAS journaled plan apply" {
         $failed.status | Should -Be "failed"
         $resumed.status | Should -Be "succeeded"
         $script:attempts | Should -Be 2
+    }
+
+    It "rejects a plan changed after integrity identity was assigned" {
+        $tampered = $script:plan | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+        $tampered.operations[0].source = "https://example.invalid/tampered.git"
+
+        { Invoke-CasOperationPlan -Plan $tampered -ConfigPath (Join-Path $script:root tampered) -OperationHandler { param($operation) } } | Should -Throw "*integrity*"
     }
 }

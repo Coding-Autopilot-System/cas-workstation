@@ -34,4 +34,11 @@ Describe "CAS deterministic operation planning" {
 
         @($repeat.operations | Where-Object action -ne "skip").Count | Should -Be 0
     }
+
+    It "plans a fast-forward update for a clean behind repository" {
+        $inventory = [pscustomobject]@{ resources = @([pscustomobject]@{ id = "repo:autogen"; status = "behind"; detail = $null }) }
+        $plan = New-CasOperationPlan -Mode upgrade -Profile core -RootPath $script:root -ConfigPath $script:config -Inventory $inventory
+
+        ($plan.operations | Where-Object id -eq "repo:autogen").action | Should -Be "update"
+    }
 }
