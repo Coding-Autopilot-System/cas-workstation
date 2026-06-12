@@ -20,4 +20,3 @@ Pester can prove behavior without installing packages or contacting networks.
 - Apply a synthetic plan twice and assert the second plan contains skips only.
 - Inject operation failure and prove journal/event correlation and resume scope.
 - Exercise dirty, detached, unexpected-branch, and diverged Git status parsing.
-

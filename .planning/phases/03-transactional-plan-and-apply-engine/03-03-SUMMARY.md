@@ -16,4 +16,3 @@ and declared the four public CAS golden-path repositories in the full profile.
 - Phase 3 focused tests: 14/14 passed.
 - Full quality gate: 46/46 tests passed with contracts, governance, and static analysis.
 - `git diff --check`: passed.
-

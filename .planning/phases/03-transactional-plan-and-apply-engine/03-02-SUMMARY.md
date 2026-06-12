@@ -15,4 +15,3 @@ persistence, bounded retry, fail-stop behavior, and resumable execution.
 - Apply Pester tests: 3/3 passed.
 - PSScriptAnalyzer: no findings.
 - `git diff --check`: passed.
-

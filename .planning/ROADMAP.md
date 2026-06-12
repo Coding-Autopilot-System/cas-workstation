@@ -42,7 +42,7 @@ CAS Workstation v1 progresses from a functional seed to a trustworthy desired-st
 3. Canonical path and ownership policies reject forbidden, escaping, junction, and unrelated targets.
 4. Uninstall preview and apply can affect only ledger-owned resources, with backup and atomic-write contracts verified.
 
-### Phase 3: Transactional Plan and Apply Engine
+### Phase 3: Transactional Plan and Apply Engine (Complete: 2026-06-12)
 
 **Goal:** Setup, upgrade, and repair use one observable, idempotent, recoverable plan/apply engine.
 

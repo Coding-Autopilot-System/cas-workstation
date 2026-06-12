@@ -27,4 +27,3 @@ engine. Preview is the default. Mutation requires explicit apply intent.
 - Satisfied resources become `skip` operations.
 - Failed operations stop the run and leave later operations pending.
 - Retry count is bounded and persisted.
-

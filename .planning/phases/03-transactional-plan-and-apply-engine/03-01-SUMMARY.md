@@ -15,4 +15,3 @@ commands, sources, risks, reasons, and idempotent skip outcomes.
 - Plan Pester tests: 3/3 passed.
 - Operation-plan schema fixtures: passed.
 - `git diff --check`: passed.
-
