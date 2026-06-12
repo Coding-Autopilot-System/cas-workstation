@@ -14,19 +14,19 @@
 
 ### Manifest and Profiles
 
-- [ ] **MAN-01**: User receives actionable errors when a manifest or selected profile is invalid.
-- [ ] **MAN-02**: Profile resolves explicit required and optional tools, repositories, services, clients, skills, and workspaces from declarative data.
-- [ ] **MAN-03**: Only allowlisted installer kinds, package identities, repositories, commands, and configuration targets can enter an execution plan.
-- [ ] **MAN-04**: User can inspect the fully resolved desired state and its deterministic digest before mutation.
-- [ ] **MAN-05**: Compatibility checks identify unsupported host, PowerShell, architecture, dependency, and version combinations before apply.
+- [x] **MAN-01**: User receives actionable errors when a manifest or selected profile is invalid.
+- [x] **MAN-02**: Profile resolves explicit required and optional tools, repositories, services, clients, skills, and workspaces from declarative data.
+- [x] **MAN-03**: Only allowlisted installer kinds, package identities, repositories, commands, and configuration targets can enter an execution plan.
+- [x] **MAN-04**: User can inspect the fully resolved desired state and its deterministic digest before mutation.
+- [x] **MAN-05**: Compatibility checks identify unsupported host, PowerShell, architecture, dependency, and version combinations before apply.
 
 ### Safety and State
 
-- [ ] **SAFE-01**: Every filesystem mutation validates canonical path boundaries and rejects forbidden or escaping targets.
-- [ ] **SAFE-02**: CAS records a versioned ownership ledger for every resource it creates or modifies.
-- [ ] **SAFE-03**: Uninstall preview lists intended removals and uninstall removes only ownership-ledger resources after explicit intent.
-- [ ] **SAFE-04**: CAS never claims ownership of tools, repositories, files, or configuration that existed before CAS management.
-- [ ] **SAFE-05**: User-owned files touched by CAS are backed up and replaced atomically only after validation.
+- [x] **SAFE-01**: Every filesystem mutation validates canonical path boundaries and rejects forbidden or escaping targets.
+- [x] **SAFE-02**: CAS records a versioned ownership ledger for every resource it creates or modifies.
+- [x] **SAFE-03**: Uninstall preview lists intended removals and uninstall removes only ownership-ledger resources after explicit intent.
+- [x] **SAFE-04**: CAS never claims ownership of tools, repositories, files, or configuration that existed before CAS management.
+- [x] **SAFE-05**: User-owned files touched by CAS are backed up and replaced atomically only after validation.
 
 ### Setup, Upgrade, and Recovery
 
@@ -92,16 +92,16 @@
 | GOV-02 | Phase 1 | Complete |
 | GOV-03 | Phase 1 | Complete |
 | GOV-04 | Phase 1 | Complete |
-| MAN-01 | Phase 2 | Pending |
-| MAN-02 | Phase 2 | Pending |
-| MAN-03 | Phase 2 | Pending |
-| MAN-04 | Phase 2 | Pending |
-| MAN-05 | Phase 2 | Pending |
-| SAFE-01 | Phase 2 | Pending |
-| SAFE-02 | Phase 2 | Pending |
-| SAFE-03 | Phase 2 | Pending |
-| SAFE-04 | Phase 2 | Pending |
-| SAFE-05 | Phase 2 | Pending |
+| MAN-01 | Phase 2 | Complete |
+| MAN-02 | Phase 2 | Complete |
+| MAN-03 | Phase 2 | Complete |
+| MAN-04 | Phase 2 | Complete |
+| MAN-05 | Phase 2 | Complete |
+| SAFE-01 | Phase 2 | Complete |
+| SAFE-02 | Phase 2 | Complete |
+| SAFE-03 | Phase 2 | Complete |
+| SAFE-04 | Phase 2 | Complete |
+| SAFE-05 | Phase 2 | Complete |
 | OPS-01 | Phase 3 | Pending |
 | OPS-02 | Phase 3 | Pending |
 | OPS-03 | Phase 3 | Pending |
