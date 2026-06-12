@@ -91,3 +91,33 @@ managed-state ledger:
 Observed resources are preserved. Modified resources require a recorded backup.
 Created directories are removed only when empty; unexpected contents block
 removal instead of triggering recursive deletion.
+
+## Plan, Apply, And Recover
+
+Setup, upgrade, and repair are preview-first entry points over the same
+deterministic operation engine. Preview shows stable operation IDs, changes,
+skips, commands, sources, and risks without mutating the workstation:
+
+```powershell
+.\setup.ps1 -Profile full
+.\upgrade.ps1 -Profile full
+.\repair.ps1 -Profile full
+```
+
+Mutation requires explicit intent. Every apply receives a correlation ID and
+writes an atomic operation journal under `.cas\state` plus JSONL events under
+`.cas\logs`:
+
+```powershell
+.\setup.ps1 -Profile full -Apply
+.\repair.ps1 -Profile full -Apply -Resume
+```
+
+Retries are bounded. A failed operation stops later work and records actionable
+resume guidance. External operations are not automatically rolled back.
+Repository updates fail closed when the checkout is dirty, detached, on an
+unexpected branch, has local commits, uses an unexpected origin, or cannot
+prove a fast-forward relationship.
+
+The `full` profile is the declarative golden path and includes `cas-platform`,
+`cas-contracts`, `cas-evals`, and `cas-reference-product`.

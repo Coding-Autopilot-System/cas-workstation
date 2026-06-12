@@ -17,11 +17,11 @@ An AI developer can run one safe, repeatable workflow and receive a complete, wo
 - ✓ Doctor can emit human-readable and JSON readiness output — existing seed
 - ✓ The seed can discover tools, repositories, and basic service health — existing seed
 - ✓ Governance, schemas, Pester, static analysis, Windows CI, ADRs, and requirement traceability — validated in Phase 1
+- ✓ Manifest, inventory, ownership, path safety, and ledger-only uninstall — validated in Phase 2
+- ✓ Deterministic plan/apply, durable recovery, repair, and repository fail-closed behavior — validated in Phase 3
 
 ### Active
 
-- [ ] Make manifest parsing, allowlisting, path handling, and destructive operations fail closed.
-- [ ] Make setup and upgrade idempotent, observable, transactional, and recoverable after partial failure.
 - [ ] Generate and merge profile-specific AI client, MCP, skill, workspace, and service configuration without overwriting unrelated user state.
 - [ ] Provide actionable diagnostics, structured logs, state inventory, recovery, and redacted support bundles.
 - [ ] Publish signed, reproducible releases with provenance and clean-machine end-to-end verification.
@@ -82,4 +82,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update context with evidence, users, feedback, and operational metrics.
 
 ---
-*Last updated: 2026-06-11 after Phase 1 completion*
+*Last updated: 2026-06-12 after Phase 3 completion*

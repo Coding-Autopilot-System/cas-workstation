@@ -30,13 +30,13 @@
 
 ### Setup, Upgrade, and Recovery
 
-- [ ] **OPS-01**: User can run one documented interactive or non-interactive setup command with equivalent outcomes.
-- [ ] **OPS-02**: Setup and upgrade first produce a deterministic operation plan showing changes, skips, commands, sources, and risks.
-- [ ] **OPS-03**: Re-running setup or upgrade on satisfied desired state performs no unintended mutations.
-- [ ] **OPS-04**: Every external process and network-affecting operation emits observable, correlated, auditable events.
-- [ ] **OPS-05**: Partial failure leaves a durable journal and actionable resume, retry, or rollback guidance.
-- [ ] **OPS-06**: Repository synchronization detects dirty/diverged state and refuses destructive reconciliation by default.
-- [ ] **OPS-07**: User can run a repair command that safely reconciles detected drift through the same plan/apply engine.
+- [x] **OPS-01**: User can run one documented interactive or non-interactive setup command with equivalent outcomes.
+- [x] **OPS-02**: Setup and upgrade first produce a deterministic operation plan showing changes, skips, commands, sources, and risks.
+- [x] **OPS-03**: Re-running setup or upgrade on satisfied desired state performs no unintended mutations.
+- [x] **OPS-04**: Every external process and network-affecting operation emits observable, correlated, auditable events.
+- [x] **OPS-05**: Partial failure leaves a durable journal and actionable resume, retry, or rollback guidance.
+- [x] **OPS-06**: Repository synchronization detects dirty/diverged state and refuses destructive reconciliation by default.
+- [x] **OPS-07**: User can run a repair command that safely reconciles detected drift through the same plan/apply engine.
 
 ### Client and Workspace Integration
 
@@ -102,13 +102,13 @@
 | SAFE-03 | Phase 2 | Complete |
 | SAFE-04 | Phase 2 | Complete |
 | SAFE-05 | Phase 2 | Complete |
-| OPS-01 | Phase 3 | Pending |
-| OPS-02 | Phase 3 | Pending |
-| OPS-03 | Phase 3 | Pending |
-| OPS-04 | Phase 3 | Pending |
-| OPS-05 | Phase 3 | Pending |
-| OPS-06 | Phase 3 | Pending |
-| OPS-07 | Phase 3 | Pending |
+| OPS-01 | Phase 3 | Complete |
+| OPS-02 | Phase 3 | Complete |
+| OPS-03 | Phase 3 | Complete |
+| OPS-04 | Phase 3 | Complete |
+| OPS-05 | Phase 3 | Complete |
+| OPS-06 | Phase 3 | Complete |
+| OPS-07 | Phase 3 | Complete |
 | CFG-01 | Phase 4 | Pending |
 | CFG-02 | Phase 4 | Pending |
 | CFG-03 | Phase 4 | Pending |
