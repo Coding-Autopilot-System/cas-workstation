@@ -986,6 +986,125 @@ function Write-CasDoctorReport {
     $Report
 }
 
+function Get-CasOperationInventory {
+    param(
+        [string]$Profile = "full",
+        [string]$RootPath = (Get-CasDefaultRootPath),
+        [pscustomobject]$Manifest = (Get-CasManifest)
+    )
+
+    $resources = New-Object System.Collections.Generic.List[object]
+    foreach ($tool in Get-CasProfileToolDefinitions -Profile $Profile -Manifest $Manifest) {
+        $status = Get-CasToolStatus -Tool $tool
+        $null = $resources.Add([pscustomobject]@{ id = "tool:$($tool.id)"; status = $status.status; detail = $status.installedVersion })
+    }
+    foreach ($repo in Get-CasProfileRepos -Profile $Profile -Manifest $Manifest) {
+        $path = Join-Path (Join-Path $RootPath $Manifest.paths.reposRoot) $repo.id
+        $status = if (Test-Path -LiteralPath $path -PathType Container) { "present" } else { "missing" }
+        $null = $resources.Add([pscustomobject]@{ id = "repo:$($repo.id)"; status = $status; detail = $path })
+    }
+    [pscustomobject]@{ resources = $resources.ToArray() }
+}
+
+function New-CasOperationPlan {
+    param(
+        [ValidateSet("setup", "upgrade", "repair")][string]$Mode = "setup",
+        [string]$Profile = "full",
+        [string]$RootPath = (Get-CasDefaultRootPath),
+        [string]$ConfigPath = (Get-CasDefaultConfigPath),
+        [pscustomobject]$Manifest = (Get-CasManifest),
+        [pscustomobject]$Inventory
+    )
+
+    if (-not $Inventory) {
+        $Inventory = [pscustomobject]@{ resources = @() }
+    }
+    $resolved = Resolve-CasDesiredState -Profile $Profile -Manifest $Manifest
+    $operations = New-Object System.Collections.Generic.List[object]
+
+    foreach ($resource in @($resolved.desiredState.resources | Sort-Object category, id)) {
+        $inventoryId = "$($resource.category.TrimEnd('s')):$($resource.id)"
+        $actual = @($Inventory.resources | Where-Object id -eq $inventoryId | Select-Object -First 1)
+        switch ($resource.category) {
+            "tools" {
+                $installer = @($resource.definition.installers | Where-Object kind -ne "manual" | Select-Object -First 1)
+                $satisfied = $actual.Count -gt 0 -and $actual[0].status -eq "installed"
+                $command = if ($installer.Count -gt 0) { "$($installer[0].kind) install $($installer[0].id)" } else { "manual" }
+                $source = if ($installer.Count -gt 0) { "$($installer[0].kind):$($installer[0].id)" } else { "manual" }
+                $null = $operations.Add([ordered]@{
+                    id = "tool:$($resource.id)"
+                    kind = "tool"
+                    target = $resource.id
+                    risk = if ($satisfied) { "low" } else { "medium" }
+                    action = if ($satisfied) { "skip" } else { "update" }
+                    command = $command
+                    source = $source
+                    reason = if ($satisfied) { "Desired tool state is satisfied." } else { "Tool is missing or below policy." }
+                })
+            }
+            "repos" {
+                $target = Join-Path (Join-Path $RootPath $Manifest.paths.reposRoot) $resource.id
+                $satisfied = $actual.Count -gt 0 -and $actual[0].status -eq "synchronized"
+                $present = $actual.Count -gt 0 -and $actual[0].status -in @("present", "synchronized")
+                $null = $operations.Add([ordered]@{
+                    id = "repo:$($resource.id)"
+                    kind = "repository"
+                    target = $target
+                    risk = if ($satisfied) { "low" } else { "medium" }
+                    action = if ($satisfied) { "skip" } elseif ($present) { "update" } else { "create" }
+                    command = if ($present) { "git fetch and fast-forward" } else { "git clone" }
+                    source = $resource.definition.url
+                    reason = if ($satisfied) { "Repository is synchronized." } elseif ($present) { "Repository requires safe synchronization." } else { "Repository is missing." }
+                    defaultBranch = $resource.definition.defaultBranch
+                })
+            }
+        }
+    }
+
+    $sortedOperations = @($operations.ToArray() | Sort-Object { $_.id })
+    $identity = [ordered]@{
+        schemaVersion = "1.0.0"
+        mode = $Mode
+        profile = $Profile
+        rootPath = Resolve-CasCanonicalPath -Path $RootPath
+        configPath = Resolve-CasCanonicalPath -Path $ConfigPath
+        desiredStateDigest = $resolved.digest
+        operations = $sortedOperations
+    }
+    $planId = Get-CasSha256 -Value (ConvertTo-CasCanonicalJson -InputObject $identity)
+    [pscustomobject]@{
+        schemaVersion = "1.0.0"
+        planId = $planId
+        correlationId = $planId
+        mode = $Mode
+        profile = $Profile
+        rootPath = $identity.rootPath
+        configPath = $identity.configPath
+        desiredStateDigest = $resolved.digest
+        operations = $sortedOperations
+    }
+}
+
+function Assert-CasOperationPlan {
+    param([Parameter(Mandatory = $true)][pscustomobject]$Plan)
+
+    if ($Plan.schemaVersion -ne "1.0.0" -or $Plan.planId -notmatch '^sha256:[a-f0-9]{64}$') {
+        throw "Operation plan has an invalid schema version or plan id."
+    }
+    if ($Plan.desiredStateDigest -notmatch '^sha256:[a-f0-9]{64}$') {
+        throw "Operation plan has an invalid desired-state digest."
+    }
+    if (@($Plan.operations | ForEach-Object id | Group-Object | Where-Object Count -gt 1).Count -gt 0) {
+        throw "Operation plan contains duplicate operation ids."
+    }
+    foreach ($operation in @($Plan.operations)) {
+        if ($operation.action -notin @("create", "update", "remove", "skip") -or $operation.risk -notin @("low", "medium", "high")) {
+            throw "Operation '$($operation.id)' has an invalid action or risk."
+        }
+    }
+    $Plan
+}
+
 function Install-CasTool {
     param(
         [pscustomobject]$Tool

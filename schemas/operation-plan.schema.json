@@ -4,14 +4,16 @@
   "title": "CAS Workstation Operation Plan",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "planId", "correlationId", "profile", "desiredStateDigest", "operations"],
+  "required": ["schemaVersion", "planId", "correlationId", "mode", "profile", "rootPath", "configPath", "desiredStateDigest", "operations"],
   "properties": {
     "schemaVersion": { "const": "1.0.0" },
-    "planId": { "type": "string", "minLength": 1 },
+    "planId": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
     "correlationId": { "type": "string", "minLength": 1 },
+    "mode": { "enum": ["setup", "upgrade", "repair"] },
     "profile": { "type": "string", "minLength": 1 },
+    "rootPath": { "type": "string", "minLength": 1 },
+    "configPath": { "type": "string", "minLength": 1 },
     "desiredStateDigest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
-    "operations": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["id", "kind", "target", "risk", "action"], "properties": { "id": { "type": "string" }, "kind": { "type": "string" }, "target": { "type": "string" }, "risk": { "enum": ["low", "medium", "high"] }, "action": { "enum": ["create", "update", "remove", "skip"] } } } }
+    "operations": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["id", "kind", "target", "risk", "action", "command", "source", "reason"], "properties": { "id": { "type": "string" }, "kind": { "enum": ["tool", "repository", "directory", "file", "configuration"] }, "target": { "type": "string" }, "risk": { "enum": ["low", "medium", "high"] }, "action": { "enum": ["create", "update", "remove", "skip"] }, "command": { "type": "string" }, "source": { "type": "string" }, "reason": { "type": "string" }, "defaultBranch": { "type": "string" } } } }
   }
 }
-
