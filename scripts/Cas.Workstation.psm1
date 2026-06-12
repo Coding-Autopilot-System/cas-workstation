@@ -1105,6 +1105,214 @@ function Assert-CasOperationPlan {
     $Plan
 }
 
+function Get-CasOperationFilePaths {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Plan,
+        [Parameter(Mandatory = $true)][string]$ConfigPath,
+        [pscustomobject]$Manifest = (Get-CasManifest)
+    )
+
+    $safeId = $Plan.planId -replace '[^A-Za-z0-9._-]', '-'
+    [pscustomobject]@{
+        journal = Join-Path (Join-Path $ConfigPath $Manifest.paths.state) "operation-$safeId.json"
+        events = Join-Path (Join-Path $ConfigPath $Manifest.paths.logs) "operation-$safeId.jsonl"
+    }
+}
+
+function Write-CasOperationEvent {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$CorrelationId,
+        [Parameter(Mandatory = $true)][string]$EventType,
+        [Parameter(Mandatory = $true)][ValidateSet("started", "succeeded", "failed", "skipped")][string]$Outcome,
+        [Parameter(Mandatory = $true)][string]$Message,
+        [hashtable]$Metadata = @{}
+    )
+
+    $event = [ordered]@{
+        schemaVersion = "1.0.0"
+        timestampUtc = [DateTime]::UtcNow.ToString("o")
+        correlationId = $CorrelationId
+        eventType = $EventType
+        outcome = $Outcome
+        message = $Message
+        metadata = $Metadata
+    }
+    Add-Content -LiteralPath $Path -Value (ConvertTo-CasCanonicalJson -InputObject $event) -Encoding UTF8
+    [pscustomobject]$event
+}
+
+function New-CasOperationJournal {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Plan,
+        [Parameter(Mandatory = $true)][string]$CorrelationId,
+        [Parameter(Mandatory = $true)][int]$MaxRetries
+    )
+
+    [pscustomobject]@{
+        schemaVersion = "1.0.0"
+        planId = $Plan.planId
+        correlationId = $CorrelationId
+        status = "pending"
+        maxRetries = $MaxRetries
+        startedAtUtc = [DateTime]::UtcNow.ToString("o")
+        completedAtUtc = $null
+        operations = @($Plan.operations | ForEach-Object {
+            [pscustomobject]@{
+                id = $_.id
+                status = "pending"
+                attempts = 0
+                lastError = $null
+                guidance = "Not started."
+            }
+        })
+    }
+}
+
+function Write-CasOperationJournal {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Journal,
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string[]]$ApprovedRoots
+    )
+
+    $null = Write-CasAtomicJson -InputObject $Journal -Path $Path -ApprovedRoots $ApprovedRoots
+}
+
+function Read-CasOperationJournal {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "Operation journal was not found: $Path"
+    }
+    try {
+        Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+    }
+    catch {
+        throw "Operation journal '$Path' is not valid JSON: $($_.Exception.Message)"
+    }
+}
+
+function Invoke-CasPlannedOperation {
+    param([Parameter(Mandatory = $true)][pscustomobject]$Operation)
+
+    if ($Operation.action -eq "skip") {
+        return
+    }
+    if ($Operation.kind -eq "tool") {
+        $parts = $Operation.source -split ':', 2
+        switch ($parts[0]) {
+            "winget" { & winget install --exact --id $parts[1] --accept-package-agreements --accept-source-agreements }
+            "scoop" { & scoop install $parts[1] }
+            "npm" { & npm install -g $parts[1] }
+            default { throw "Tool operation '$($Operation.id)' has no executable allowlisted adapter." }
+        }
+        if ($LASTEXITCODE -ne 0) { throw "Tool operation '$($Operation.id)' failed with exit code $LASTEXITCODE." }
+        return
+    }
+    if ($Operation.kind -eq "repository") {
+        if ($Operation.action -eq "create") {
+            & git clone $Operation.source $Operation.target
+        }
+        else {
+            & git -C $Operation.target fetch origin
+            if ($LASTEXITCODE -eq 0) { & git -C $Operation.target merge --ff-only "origin/$($Operation.defaultBranch)" }
+        }
+        if ($LASTEXITCODE -ne 0) { throw "Repository operation '$($Operation.id)' failed with exit code $LASTEXITCODE." }
+        return
+    }
+    throw "No executor is registered for operation kind '$($Operation.kind)'."
+}
+
+function Invoke-CasOperationPlan {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Plan,
+        [Parameter(Mandatory = $true)][string]$ConfigPath,
+        [string[]]$ApprovedRoots,
+        [ValidateRange(0, 3)][int]$MaxRetries = 1,
+        [switch]$Resume,
+        [scriptblock]$OperationHandler = { param($operation) Invoke-CasPlannedOperation -Operation $operation },
+        [pscustomobject]$Manifest = (Get-CasManifest)
+    )
+
+    $null = Assert-CasOperationPlan -Plan $Plan
+    if (-not $ApprovedRoots) {
+        $ApprovedRoots = @($Plan.rootPath, $ConfigPath)
+    }
+    $stateRoot = Join-Path $ConfigPath $Manifest.paths.state
+    $logRoot = Join-Path $ConfigPath $Manifest.paths.logs
+    foreach ($directory in @($ConfigPath, $stateRoot, $logRoot)) {
+        $null = Assert-CasSafePath -Path $directory -ApprovedRoots $ApprovedRoots -AllowBoundary
+        if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+            New-Item -ItemType Directory -Path $directory -Force | Out-Null
+        }
+    }
+
+    $paths = Get-CasOperationFilePaths -Plan $Plan -ConfigPath $ConfigPath -Manifest $Manifest
+    if ($Resume) {
+        $journal = Read-CasOperationJournal -Path $paths.journal
+        if ($journal.planId -ne $Plan.planId) {
+            throw "Operation journal does not match the requested plan."
+        }
+    }
+    else {
+        $journal = New-CasOperationJournal -Plan $Plan -CorrelationId ([Guid]::NewGuid().ToString()) -MaxRetries $MaxRetries
+    }
+
+    $journal.status = "running"
+    Write-CasOperationJournal -Journal $journal -Path $paths.journal -ApprovedRoots $ApprovedRoots
+    $null = Write-CasOperationEvent -Path $paths.events -CorrelationId $journal.correlationId -EventType "plan" -Outcome "started" -Message "Operation plan apply started." -Metadata @{ planId = $Plan.planId }
+
+    foreach ($operation in @($Plan.operations)) {
+        $entry = $journal.operations | Where-Object id -eq $operation.id | Select-Object -First 1
+        if ($entry.status -in @("succeeded", "skipped")) {
+            continue
+        }
+        if ($operation.action -eq "skip") {
+            $entry.status = "skipped"
+            $entry.guidance = "No action required."
+            Write-CasOperationJournal -Journal $journal -Path $paths.journal -ApprovedRoots $ApprovedRoots
+            $null = Write-CasOperationEvent -Path $paths.events -CorrelationId $journal.correlationId -EventType $operation.id -Outcome "skipped" -Message $operation.reason -Metadata @{ command = $operation.command; source = $operation.source }
+            continue
+        }
+
+        $succeeded = $false
+        for ($attempt = 0; $attempt -le $MaxRetries -and -not $succeeded; $attempt++) {
+            $entry.attempts++
+            $entry.status = "running"
+            $entry.guidance = "Operation is running."
+            Write-CasOperationJournal -Journal $journal -Path $paths.journal -ApprovedRoots $ApprovedRoots
+            $null = Write-CasOperationEvent -Path $paths.events -CorrelationId $journal.correlationId -EventType $operation.id -Outcome "started" -Message "Operation attempt $($entry.attempts) started." -Metadata @{ command = $operation.command; source = $operation.source }
+            try {
+                & $OperationHandler $operation
+                $entry.status = "succeeded"
+                $entry.lastError = $null
+                $entry.guidance = "No recovery action required."
+                $succeeded = $true
+                $null = Write-CasOperationEvent -Path $paths.events -CorrelationId $journal.correlationId -EventType $operation.id -Outcome "succeeded" -Message "Operation succeeded." -Metadata @{ attempts = $entry.attempts }
+            }
+            catch {
+                $entry.status = "failed"
+                $entry.lastError = $_.Exception.Message
+                $entry.guidance = "Inspect the correlated event log, correct the cause, then resume this plan. External operations are not automatically rolled back."
+                $null = Write-CasOperationEvent -Path $paths.events -CorrelationId $journal.correlationId -EventType $operation.id -Outcome "failed" -Message $_.Exception.Message -Metadata @{ attempts = $entry.attempts }
+            }
+            Write-CasOperationJournal -Journal $journal -Path $paths.journal -ApprovedRoots $ApprovedRoots
+        }
+        if (-not $succeeded) {
+            $journal.status = "failed"
+            Write-CasOperationJournal -Journal $journal -Path $paths.journal -ApprovedRoots $ApprovedRoots
+            return $journal
+        }
+    }
+
+    $journal.status = "succeeded"
+    $journal.completedAtUtc = [DateTime]::UtcNow.ToString("o")
+    Write-CasOperationJournal -Journal $journal -Path $paths.journal -ApprovedRoots $ApprovedRoots
+    $null = Write-CasOperationEvent -Path $paths.events -CorrelationId $journal.correlationId -EventType "plan" -Outcome "succeeded" -Message "Operation plan apply completed." -Metadata @{ planId = $Plan.planId }
+    $journal
+}
+
 function Install-CasTool {
     param(
         [pscustomobject]$Tool
