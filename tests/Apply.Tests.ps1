@@ -71,7 +71,8 @@ Describe "CAS journaled plan apply" {
     }
 
     It "applies a typed client operation and records owned-content evidence" {
-        $manifest = Get-CasManifest
+        $manifest = Get-CasManifest | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+        ($manifest.clients | Where-Object id -eq codex).ownershipKey = "cas-workstation.custom-refiner"
         $config = Join-Path $script:root client-apply
         $client = $manifest.clients | Where-Object id -eq codex
         $target = Get-CasClientTarget -Client $client -ConfigPath $config -Manifest $manifest
@@ -95,5 +96,7 @@ Describe "CAS journaled plan apply" {
         $journal.status | Should -Be "succeeded"
         $state.resources[0].id | Should -Be "client:codex"
         $state.resources[0].contentDigest | Should -Be $operation.desiredDigest
+        (Get-Content -LiteralPath $target -Raw | ConvertFrom-Json).mcpServers.'cas-workstation.custom-refiner' | Should -Not -BeNullOrEmpty
+        (Get-Content -LiteralPath $target -Raw | ConvertFrom-Json).mcpServers.PSObject.Properties["cas-workstation.prompt-refiner"] | Should -BeNullOrEmpty
     }
 }

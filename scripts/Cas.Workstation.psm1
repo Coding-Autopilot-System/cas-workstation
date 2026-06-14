@@ -531,7 +531,11 @@ function Get-CasUninstallPreview {
         }
 
         $target = Assert-CasSafePath -Path $resource.target -ApprovedRoots $ApprovedRoots -AllowBoundary
-        if ($resource.kind -eq "configuration" -and $resource.id -like "client:*") {
+        if ($resource.kind -eq "directory" -and $resource.ownership -eq "created" -and $resource.contentDigest) {
+            $backup = $null
+            $action = "remove-owned-tree"
+        }
+        elseif ($resource.kind -eq "configuration" -and $resource.id -like "client:*") {
             $backup = $null
             $action = "remove-owned-configuration"
         }
@@ -553,6 +557,7 @@ function Get-CasUninstallPreview {
             ownership = $resource.ownership
             target = $target
             backupTarget = $backup
+            contentDigest = $resource.contentDigest
             action = $action
             actionable = $true
         })
@@ -609,7 +614,14 @@ function Invoke-CasUninstall {
             continue
         }
 
-        if ($action.action -eq "remove-owned-configuration") {
+        if ($action.action -eq "remove-owned-tree") {
+            $actualDigest = Get-CasTreeDigest -Path $target -ApprovedRoots $ApprovedRoots
+            if (-not $action.contentDigest -or $actualDigest -ne $action.contentDigest) {
+                throw "Managed tree '$($action.id)' does not match ledger ownership evidence."
+            }
+            Remove-Item -LiteralPath $target -Recurse -Force
+        }
+        elseif ($action.action -eq "remove-owned-configuration") {
             $clientId = $action.id.Substring("client:".Length)
             $client = (Get-CasManifest).clients | Where-Object id -eq $clientId | Select-Object -First 1
             if (-not $client) { throw "Client adapter '$clientId' was not found for uninstall." }
@@ -1195,7 +1207,8 @@ function Copy-CasManagedTree {
         [Parameter(Mandatory = $true)][string]$Source,
         [Parameter(Mandatory = $true)][string]$Target,
         [Parameter(Mandatory = $true)][string[]]$ApprovedRoots,
-        [switch]$ReplaceOwned
+        [switch]$ReplaceOwned,
+        [string]$ExpectedOwnedDigest
     )
 
     $sourceRoot = Assert-CasSafePath -Path $Source -ApprovedRoots $ApprovedRoots
@@ -1210,11 +1223,12 @@ function Copy-CasManagedTree {
         New-Item -ItemType Directory -Path $targetRoot -Force | Out-Null
     }
     if ($ReplaceOwned) {
-        $sourceEntries = @(Get-ChildItem -LiteralPath $sourceRoot -Recurse -File | ForEach-Object { $_.FullName.Substring($sourceRoot.Length).TrimStart("\", "/").Replace("\", "/") })
-        $unexpected = @(Get-ChildItem -LiteralPath $targetRoot -Recurse -File | ForEach-Object { $_.FullName.Substring($targetRoot.Length).TrimStart("\", "/").Replace("\", "/") } | Where-Object { $sourceEntries -notcontains $_ })
-        if ($unexpected.Count -gt 0) {
-            throw "Managed tree target contains unexpected state: $($unexpected -join ', ')."
+        $actualDigest = Get-CasTreeDigest -Path $targetRoot -ApprovedRoots $ApprovedRoots
+        if (-not $ExpectedOwnedDigest -or $actualDigest -ne $ExpectedOwnedDigest) {
+            throw "Managed tree target does not match prior ownership evidence."
         }
+        Remove-Item -LiteralPath $targetRoot -Recurse -Force
+        New-Item -ItemType Directory -Path $targetRoot -Force | Out-Null
     }
     foreach ($file in Get-ChildItem -LiteralPath $sourceRoot -Recurse -File) {
         $null = Assert-CasSafePath -Path $file.FullName -ApprovedRoots $sourceRoot
@@ -1256,6 +1270,7 @@ function Get-CasOperationInventory {
         $null = $resources.Add([pscustomobject]@{ id = "repo:$($repo.id)"; status = $status; detail = $path })
     }
     $profileDefinition = Get-CasProfile -Name $Profile -Manifest $Manifest
+    $selectedRepoIds = @($profileDefinition.repos.required) + @($profileDefinition.repos.optional)
     foreach ($clientId in @($profileDefinition.clients.required) + @($profileDefinition.clients.optional)) {
         $client = $Manifest.clients | Where-Object id -eq $clientId | Select-Object -First 1
         $status = Get-CasClientConfigurationStatus -Client $client -ConfigPath $ConfigPath -Manifest $Manifest
@@ -1269,12 +1284,14 @@ function Get-CasOperationInventory {
             $definition = $Manifest.$category | Where-Object id -eq $id | Select-Object -First 1
             $source = Join-Path (Join-Path (Join-Path $RootPath $Manifest.paths.reposRoot) $definition.repo) $definition.sourceRelativePath
             $target = Join-Path $ConfigPath $definition.targetRelativePath
-            $status = if (-not (Test-Path -LiteralPath $source -PathType Container)) { "unsupported" } elseif (-not (Test-Path -LiteralPath $target -PathType Container)) { "missing" } else {
+            $sourceDigest = $null
+            $targetDigest = $null
+            $status = if (-not (Test-Path -LiteralPath $source -PathType Container)) { if ($selectedRepoIds -contains $definition.repo) { "pending-source" } else { "unsupported" } } elseif (-not (Test-Path -LiteralPath $target -PathType Container)) { "missing" } else {
                 $sourceDigest = Get-CasTreeDigest -Path $source -ApprovedRoots $RootPath
                 $targetDigest = Get-CasTreeDigest -Path $target -ApprovedRoots $ConfigPath
                 if ($sourceDigest -eq $targetDigest) { "satisfied" } elseif ($managedState -and @($managedState.resources | Where-Object id -eq "$($category.TrimEnd('s')):$id").Count -gt 0) { "drifted" } else { "conflicting" }
             }
-            $null = $resources.Add([pscustomobject]@{ id = "$($category.TrimEnd('s')):$id"; status = $status; detail = $target })
+            $null = $resources.Add([pscustomobject]@{ id = "$($category.TrimEnd('s')):$id"; status = $status; detail = $target; desiredDigest = $sourceDigest; observedDigest = $targetDigest })
         }
     }
     [pscustomobject]@{ resources = $resources.ToArray() }
@@ -1366,6 +1383,7 @@ function New-CasOperationPlan {
                     action = if ($status -eq "satisfied") { "skip" } elseif ($status -eq "drifted") { "update" } else { "create" }
                     command = "copy allowlisted managed tree"
                     source = $source
+                    observedDigest = if ($actual.Count -gt 0 -and $actual[0].PSObject.Properties["observedDigest"]) { $actual[0].observedDigest } else { $null }
                     reason = if ($status -eq "satisfied") { "Managed tree is satisfied." } else { "Managed tree is missing." }
                 })
             }
@@ -1520,7 +1538,10 @@ function Read-CasOperationJournal {
 }
 
 function Invoke-CasPlannedOperation {
-    param([Parameter(Mandatory = $true)][pscustomobject]$Operation)
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Operation,
+        [pscustomobject]$Manifest = (Get-CasManifest)
+    )
 
     if ($Operation.action -eq "skip") {
         return
@@ -1552,14 +1573,14 @@ function Invoke-CasPlannedOperation {
         return
     }
     if ($Operation.kind -eq "configuration" -and $Operation.adapter -eq "json-mcp") {
-        $manifest = Get-CasManifest
         $clientId = $Operation.id.Substring("client:".Length)
-        $client = $manifest.clients | Where-Object id -eq $clientId | Select-Object -First 1
+        $client = $Manifest.clients | Where-Object id -eq $clientId | Select-Object -First 1
         $configPath = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $Operation.target))
-        return Set-CasClientConfiguration -Client $client -ConfigPath $configPath -ApprovedRoots $configPath -Manifest $manifest
+        return Set-CasClientConfiguration -Client $client -ConfigPath $configPath -ApprovedRoots $configPath -Manifest $Manifest
     }
     if ($Operation.kind -eq "directory" -and $Operation.adapter -eq "tree-copy") {
-        return Copy-CasManagedTree -Source $Operation.source -Target $Operation.target -ApprovedRoots @((Split-Path -Parent $Operation.source), (Split-Path -Parent $Operation.target)) -ReplaceOwned:($Operation.action -eq "update")
+        $observedDigest = if ($Operation.PSObject.Properties["observedDigest"]) { $Operation.observedDigest } else { $null }
+        return Copy-CasManagedTree -Source $Operation.source -Target $Operation.target -ApprovedRoots @((Split-Path -Parent $Operation.source), (Split-Path -Parent $Operation.target)) -ReplaceOwned:($Operation.action -eq "update") -ExpectedOwnedDigest $observedDigest
     }
     throw "No executor is registered for operation kind '$($Operation.kind)'."
 }
@@ -1599,11 +1620,14 @@ function Invoke-CasOperationPlan {
         [string[]]$ApprovedRoots,
         [ValidateRange(0, 3)][int]$MaxRetries = 1,
         [switch]$Resume,
-        [scriptblock]$OperationHandler = { param($operation) Invoke-CasPlannedOperation -Operation $operation },
+        [scriptblock]$OperationHandler,
         [pscustomobject]$Manifest = (Get-CasManifest)
     )
 
     $null = Assert-CasOperationPlan -Plan $Plan
+    if (-not $OperationHandler) {
+        $OperationHandler = { param($operation) Invoke-CasPlannedOperation -Operation $operation -Manifest $Manifest }.GetNewClosure()
+    }
     if (-not $ApprovedRoots) {
         $ApprovedRoots = @($Plan.rootPath, $ConfigPath)
     }

@@ -358,7 +358,7 @@
   "workspaces": [
     {
       "id": "cas-default",
-      "repo": "cas-reference-product",
+      "repo": "Promptimprover",
       "sourceRelativePath": "docs",
       "targetRelativePath": "workspaces\\default",
       "adapter": "tree-copy"

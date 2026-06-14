@@ -110,4 +110,18 @@ Describe "CAS ledger-only uninstall" {
         $updated.mcpServers.'user.server'.command | Should -Be "user"
         $updated.mcpServers.PSObject.Properties[$client.ownershipKey] | Should -BeNullOrEmpty
     }
+
+    It "removes a nonempty managed tree only when its ledger digest still matches" {
+        $tree = Join-Path $script:config "skills\owned"
+        New-Item -ItemType Directory -Path $tree -Force | Out-Null
+        "owned" | Set-Content (Join-Path $tree SKILL.md)
+        $digest = Get-CasTreeDigest -Path $tree -ApprovedRoots $script:config
+        $null = Add-CasManagedResource -State $script:state -Id "skill:owned" -Kind directory -Ownership created -Target $tree -WasPresentBefore $false -ContentDigest $digest
+        Write-CasManagedState -State $script:state -Path $script:statePath -ApprovedRoots $script:config
+
+        $preview = Get-CasUninstallPreview -StatePath $script:statePath -ApprovedRoots $script:config
+        $preview.actions[0].action | Should -Be "remove-owned-tree"
+        $null = Invoke-CasUninstall -Preview $preview -ApprovedRoots $script:config -Confirm:$false
+        Test-Path $tree | Should -BeFalse
+    }
 }

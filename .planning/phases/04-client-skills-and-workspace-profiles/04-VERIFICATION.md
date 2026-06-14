@@ -21,7 +21,7 @@ skills, and workspace conventions without clobbering unrelated user state.
 ## Validation
 
 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Invoke-Quality.ps1`
-passed with 56/56 Pester tests plus schemas, PSScriptAnalyzer, governance, and
+passed with 59/59 Pester tests plus schemas, PSScriptAnalyzer, governance, and
 documentation validation.
 
 No Azure resources were deployed and no real user-profile client files were
