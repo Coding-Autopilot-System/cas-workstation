@@ -84,10 +84,42 @@ function Assert-CasManifest {
         if (@($Manifest.policy.allowedConfigTargets) -notcontains $client.fileName) {
             throw "Client '$($client.id)' uses unallowlisted configuration target '$($client.fileName)'."
         }
+        if (@($Manifest.policy.allowedAdapters) -notcontains $client.adapter) {
+            throw "Client '$($client.id)' uses unallowlisted adapter '$($client.adapter)'."
+        }
+        if ($client.ownershipKey -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]+$') {
+            throw "Client '$($client.id)' uses an invalid ownership key."
+        }
+    }
+
+    $knownRepos = @($Manifest.repos | ForEach-Object id)
+    foreach ($category in @("skills", "workspaces")) {
+        foreach ($resource in @($Manifest.$category)) {
+            if (@($Manifest.policy.allowedAdapters) -notcontains $resource.adapter) {
+                throw "$category resource '$($resource.id)' uses unallowlisted adapter '$($resource.adapter)'."
+            }
+            if ($knownRepos -notcontains $resource.repo) {
+                throw "$category resource '$($resource.id)' references unknown repository '$($resource.repo)'."
+            }
+            foreach ($relativePath in @($resource.sourceRelativePath, $resource.targetRelativePath)) {
+                if ([IO.Path]::IsPathRooted($relativePath) -or $relativePath -match '(^|[\\/])\.\.([\\/]|$)') {
+                    throw "$category resource '$($resource.id)' uses unsafe relative path '$relativePath'."
+                }
+            }
+        }
     }
 
     if ($allowedCommands -notcontains $Manifest.sharedMcpServer.command) {
         throw "Shared MCP server uses unallowlisted command '$($Manifest.sharedMcpServer.command)'."
+    }
+    if ($Manifest.sharedMcpServer.scope -eq "local-workstation" -and $Manifest.sharedMcpServer.transport -ne "stdio") {
+        throw "Local workstation MCP servers must use stdio transport."
+    }
+    if ($Manifest.sharedMcpServer.scope -eq "production-remote" -and $Manifest.sharedMcpServer.transport -eq "stdio") {
+        throw "Production remote MCP servers cannot use stdio transport."
+    }
+    if ($Manifest.sharedMcpServer.authReference -and $Manifest.sharedMcpServer.authReference -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
+        throw "Shared MCP server authentication must be an environment reference, not a secret value."
     }
 
     foreach ($profileName in Get-CasPropertyNames -InputObject $Manifest.profiles) {
@@ -499,7 +531,11 @@ function Get-CasUninstallPreview {
         }
 
         $target = Assert-CasSafePath -Path $resource.target -ApprovedRoots $ApprovedRoots -AllowBoundary
-        if ($resource.ownership -eq "modified") {
+        if ($resource.kind -eq "configuration" -and $resource.id -like "client:*") {
+            $backup = $null
+            $action = "remove-owned-configuration"
+        }
+        elseif ($resource.ownership -eq "modified") {
             $backup = Assert-CasSafePath -Path $resource.backupTarget -ApprovedRoots $ApprovedRoots
             if (-not (Test-Path -LiteralPath $backup -PathType Leaf)) {
                 throw "Backup for modified resource '$($resource.id)' was not found: $backup"
@@ -573,7 +609,17 @@ function Invoke-CasUninstall {
             continue
         }
 
-        if ($action.action -eq "restore-backup") {
+        if ($action.action -eq "remove-owned-configuration") {
+            $clientId = $action.id.Substring("client:".Length)
+            $client = (Get-CasManifest).clients | Where-Object id -eq $clientId | Select-Object -First 1
+            if (-not $client) { throw "Client adapter '$clientId' was not found for uninstall." }
+            if (Test-Path -LiteralPath $target -PathType Leaf) {
+                $existing = Get-Content -LiteralPath $target -Raw -Encoding UTF8 | ConvertFrom-Json
+                $updated = Remove-CasClientConfiguration -ExistingConfiguration $existing -OwnershipKey $client.ownershipKey
+                $null = Write-CasAtomicJson -InputObject $updated -Path $target -ApprovedRoots $ApprovedRoots
+            }
+        }
+        elseif ($action.action -eq "restore-backup") {
             $backup = Assert-CasSafePath -Path $action.backupTarget -ApprovedRoots $ApprovedRoots
             if (-not (Test-Path -LiteralPath $backup -PathType Leaf)) {
                 throw "Backup for '$($action.id)' disappeared before apply."
@@ -986,14 +1032,215 @@ function Write-CasDoctorReport {
     $Report
 }
 
+function Get-CasClientTarget {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Client,
+        [Parameter(Mandatory = $true)][string]$ConfigPath,
+        [pscustomobject]$Manifest = (Get-CasManifest)
+    )
+
+    Join-Path (Join-Path (Join-Path $ConfigPath $Manifest.paths.mcp) "clients") $Client.fileName
+}
+
+function Get-CasDesiredMcpNode {
+    param([pscustomobject]$Manifest = (Get-CasManifest))
+
+    [ordered]@{
+        command = $Manifest.sharedMcpServer.command
+        args = @($Manifest.sharedMcpServer.args)
+        transport = $Manifest.sharedMcpServer.transport
+        scope = $Manifest.sharedMcpServer.scope
+        authReference = $Manifest.sharedMcpServer.authReference
+    }
+}
+
+function Get-CasObjectPropertyValue {
+    param([object]$InputObject, [string]$Name)
+
+    if ($null -eq $InputObject) { return $null }
+    $property = $InputObject.PSObject.Properties[$Name]
+    if ($property) { $property.Value }
+}
+
+function Merge-CasClientConfiguration {
+    param(
+        [object]$ExistingConfiguration,
+        [Parameter(Mandatory = $true)][pscustomobject]$Client,
+        [pscustomobject]$Manifest = (Get-CasManifest)
+    )
+
+    $merged = if ($null -eq $ExistingConfiguration) {
+        [pscustomobject]@{}
+    }
+    else {
+        $ExistingConfiguration | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+    }
+    $servers = Get-CasObjectPropertyValue -InputObject $merged -Name "mcpServers"
+    if ($null -eq $servers) {
+        $servers = [pscustomobject]@{}
+        $merged | Add-Member -MemberType NoteProperty -Name "mcpServers" -Value $servers
+    }
+    elseif ($servers -isnot [pscustomobject]) {
+        throw "Client '$($Client.id)' has an invalid mcpServers object."
+    }
+
+    $node = [pscustomobject](Get-CasDesiredMcpNode -Manifest $Manifest)
+    $property = $servers.PSObject.Properties[$Client.ownershipKey]
+    if ($property) {
+        $property.Value = $node
+    }
+    else {
+        $servers | Add-Member -MemberType NoteProperty -Name $Client.ownershipKey -Value $node
+    }
+    $merged
+}
+
+function Remove-CasClientConfiguration {
+    param(
+        [Parameter(Mandatory = $true)][object]$ExistingConfiguration,
+        [Parameter(Mandatory = $true)][string]$OwnershipKey
+    )
+
+    $updated = $ExistingConfiguration | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+    $servers = Get-CasObjectPropertyValue -InputObject $updated -Name "mcpServers"
+    if ($servers -and $servers.PSObject.Properties[$OwnershipKey]) {
+        $servers.PSObject.Properties.Remove($OwnershipKey)
+    }
+    $updated
+}
+
+function Get-CasClientConfigurationStatus {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Client,
+        [Parameter(Mandatory = $true)][string]$ConfigPath,
+        [pscustomobject]$Manifest = (Get-CasManifest)
+    )
+
+    $target = Get-CasClientTarget -Client $Client -ConfigPath $ConfigPath -Manifest $Manifest
+    $desiredDigest = Get-CasSha256 -Value (ConvertTo-CasCanonicalJson -InputObject (Get-CasDesiredMcpNode -Manifest $Manifest))
+    if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+        return [pscustomobject]@{ status = "missing"; target = $target; desiredDigest = $desiredDigest; observedDigest = $null }
+    }
+    try {
+        $configuration = Get-Content -LiteralPath $target -Raw -Encoding UTF8 | ConvertFrom-Json
+    }
+    catch {
+        return [pscustomobject]@{ status = "unsupported"; target = $target; desiredDigest = $desiredDigest; observedDigest = $null }
+    }
+    $servers = Get-CasObjectPropertyValue -InputObject $configuration -Name "mcpServers"
+    $node = Get-CasObjectPropertyValue -InputObject $servers -Name $Client.ownershipKey
+    if ($null -eq $node) {
+        return [pscustomobject]@{ status = "missing"; target = $target; desiredDigest = $desiredDigest; observedDigest = $null }
+    }
+    $observedDigest = Get-CasSha256 -Value (ConvertTo-CasCanonicalJson -InputObject $node)
+    [pscustomobject]@{
+        status = if ($observedDigest -eq $desiredDigest) { "satisfied" } else { "drifted" }
+        target = $target
+        desiredDigest = $desiredDigest
+        observedDigest = $observedDigest
+    }
+}
+
+function Set-CasClientConfiguration {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Client,
+        [Parameter(Mandatory = $true)][string]$ConfigPath,
+        [string[]]$ApprovedRoots = @($ConfigPath),
+        [pscustomobject]$Manifest = (Get-CasManifest)
+    )
+
+    $target = Get-CasClientTarget -Client $Client -ConfigPath $ConfigPath -Manifest $Manifest
+    $parent = Split-Path -Parent $target
+    $null = Assert-CasSafePath -Path $parent -ApprovedRoots $ApprovedRoots -AllowBoundary
+    if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+    $existing = if (Test-Path -LiteralPath $target -PathType Leaf) {
+        Get-Content -LiteralPath $target -Raw -Encoding UTF8 | ConvertFrom-Json
+    }
+    else { $null }
+    $merged = Merge-CasClientConfiguration -ExistingConfiguration $existing -Client $Client -Manifest $Manifest
+    $backup = Write-CasAtomicJson -InputObject $merged -Path $target -ApprovedRoots $ApprovedRoots
+    $status = Get-CasClientConfigurationStatus -Client $Client -ConfigPath $ConfigPath -Manifest $Manifest
+    if ($status.status -ne "satisfied") {
+        throw "Client configuration '$($Client.id)' failed post-write verification."
+    }
+    [pscustomobject]@{ target = $target; backupTarget = $backup; contentDigest = $status.desiredDigest; wasPresentBefore = [bool]$existing }
+}
+
+function Get-CasTreeDigest {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string[]]$ApprovedRoots
+    )
+
+    $root = Assert-CasSafePath -Path $Path -ApprovedRoots $ApprovedRoots
+    if (-not (Test-Path -LiteralPath $root -PathType Container)) {
+        return $null
+    }
+    $entries = @(
+        Get-ChildItem -LiteralPath $root -Recurse -File | Sort-Object FullName | ForEach-Object {
+            $null = Assert-CasSafePath -Path $_.FullName -ApprovedRoots $root
+            [ordered]@{
+                path = $_.FullName.Substring($root.Length).TrimStart("\", "/").Replace("\", "/")
+                digest = "sha256:$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())"
+            }
+        }
+    )
+    Get-CasSha256 -Value (ConvertTo-CasCanonicalJson -InputObject $entries)
+}
+
+function Copy-CasManagedTree {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)][string[]]$ApprovedRoots,
+        [switch]$ReplaceOwned
+    )
+
+    $sourceRoot = Assert-CasSafePath -Path $Source -ApprovedRoots $ApprovedRoots
+    $targetRoot = Assert-CasSafePath -Path $Target -ApprovedRoots $ApprovedRoots
+    if (-not (Test-Path -LiteralPath $sourceRoot -PathType Container)) {
+        throw "Managed tree source was not found: $sourceRoot"
+    }
+    if ((Test-Path -LiteralPath $targetRoot) -and -not $ReplaceOwned) {
+        throw "Managed tree target already exists and cannot be adopted: $targetRoot"
+    }
+    if (-not (Test-Path -LiteralPath $targetRoot)) {
+        New-Item -ItemType Directory -Path $targetRoot -Force | Out-Null
+    }
+    if ($ReplaceOwned) {
+        $sourceEntries = @(Get-ChildItem -LiteralPath $sourceRoot -Recurse -File | ForEach-Object { $_.FullName.Substring($sourceRoot.Length).TrimStart("\", "/").Replace("\", "/") })
+        $unexpected = @(Get-ChildItem -LiteralPath $targetRoot -Recurse -File | ForEach-Object { $_.FullName.Substring($targetRoot.Length).TrimStart("\", "/").Replace("\", "/") } | Where-Object { $sourceEntries -notcontains $_ })
+        if ($unexpected.Count -gt 0) {
+            throw "Managed tree target contains unexpected state: $($unexpected -join ', ')."
+        }
+    }
+    foreach ($file in Get-ChildItem -LiteralPath $sourceRoot -Recurse -File) {
+        $null = Assert-CasSafePath -Path $file.FullName -ApprovedRoots $sourceRoot
+        $relative = $file.FullName.Substring($sourceRoot.Length).TrimStart("\", "/")
+        $destination = Join-Path $targetRoot $relative
+        $null = Assert-CasSafePath -Path $destination -ApprovedRoots $targetRoot
+        $parent = Split-Path -Parent $destination
+        if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
+            New-Item -ItemType Directory -Path $parent -Force | Out-Null
+        }
+        Copy-Item -LiteralPath $file.FullName -Destination $destination -Force
+    }
+    [pscustomobject]@{ target = $targetRoot; contentDigest = Get-CasTreeDigest -Path $targetRoot -ApprovedRoots $ApprovedRoots; wasPresentBefore = $false }
+}
+
 function Get-CasOperationInventory {
     param(
         [string]$Profile = "full",
         [string]$RootPath = (Get-CasDefaultRootPath),
+        [string]$ConfigPath = (Get-CasDefaultConfigPath),
         [pscustomobject]$Manifest = (Get-CasManifest)
     )
 
     $resources = New-Object System.Collections.Generic.List[object]
+    $managedStatePath = Get-CasManagedStatePath -ConfigPath $ConfigPath -Manifest $Manifest
+    $managedState = if (Test-Path -LiteralPath $managedStatePath -PathType Leaf) { Read-CasManagedState -Path $managedStatePath } else { $null }
     foreach ($tool in Get-CasProfileToolDefinitions -Profile $Profile -Manifest $Manifest) {
         $status = Get-CasToolStatus -Tool $tool
         $null = $resources.Add([pscustomobject]@{ id = "tool:$($tool.id)"; status = $status.status; detail = $status.installedVersion })
@@ -1007,6 +1254,28 @@ function Get-CasOperationInventory {
             "missing"
         }
         $null = $resources.Add([pscustomobject]@{ id = "repo:$($repo.id)"; status = $status; detail = $path })
+    }
+    $profileDefinition = Get-CasProfile -Name $Profile -Manifest $Manifest
+    foreach ($clientId in @($profileDefinition.clients.required) + @($profileDefinition.clients.optional)) {
+        $client = $Manifest.clients | Where-Object id -eq $clientId | Select-Object -First 1
+        $status = Get-CasClientConfigurationStatus -Client $client -ConfigPath $ConfigPath -Manifest $Manifest
+        if ($status.status -eq "drifted" -and ($null -eq $managedState -or @($managedState.resources | Where-Object id -eq "client:$clientId").Count -eq 0)) {
+            $status.status = "conflicting"
+        }
+        $null = $resources.Add([pscustomobject]@{ id = "client:$clientId"; status = $status.status; detail = $status.target; desiredDigest = $status.desiredDigest })
+    }
+    foreach ($category in @("skills", "workspaces")) {
+        foreach ($id in @($profileDefinition.$category.required) + @($profileDefinition.$category.optional)) {
+            $definition = $Manifest.$category | Where-Object id -eq $id | Select-Object -First 1
+            $source = Join-Path (Join-Path (Join-Path $RootPath $Manifest.paths.reposRoot) $definition.repo) $definition.sourceRelativePath
+            $target = Join-Path $ConfigPath $definition.targetRelativePath
+            $status = if (-not (Test-Path -LiteralPath $source -PathType Container)) { "unsupported" } elseif (-not (Test-Path -LiteralPath $target -PathType Container)) { "missing" } else {
+                $sourceDigest = Get-CasTreeDigest -Path $source -ApprovedRoots $RootPath
+                $targetDigest = Get-CasTreeDigest -Path $target -ApprovedRoots $ConfigPath
+                if ($sourceDigest -eq $targetDigest) { "satisfied" } elseif ($managedState -and @($managedState.resources | Where-Object id -eq "$($category.TrimEnd('s')):$id").Count -gt 0) { "drifted" } else { "conflicting" }
+            }
+            $null = $resources.Add([pscustomobject]@{ id = "$($category.TrimEnd('s')):$id"; status = $status; detail = $target })
+        }
     }
     [pscustomobject]@{ resources = $resources.ToArray() }
 }
@@ -1063,10 +1332,48 @@ function New-CasOperationPlan {
                     defaultBranch = $resource.definition.defaultBranch
                 })
             }
+            "clients" {
+                $status = if ($actual.Count -gt 0 -and $actual[0].status -eq "synchronized") { "satisfied" } elseif ($actual.Count -gt 0) { $actual[0].status } else { "missing" }
+                if ($status -in @("unsupported", "conflicting")) { throw "Client '$($resource.id)' has $status configuration state." }
+                $target = Get-CasClientTarget -Client $resource.definition -ConfigPath $ConfigPath -Manifest $Manifest
+                $null = $operations.Add([ordered]@{
+                    id = "client:$($resource.id)"
+                    kind = "configuration"
+                    resourceCategory = "client"
+                    adapter = $resource.definition.adapter
+                    ownershipKey = $resource.definition.ownershipKey
+                    target = $target
+                    risk = if ($status -eq "satisfied") { "low" } else { "medium" }
+                    action = if ($status -eq "satisfied") { "skip" } elseif ($status -eq "missing") { "create" } else { "update" }
+                    command = "merge CAS-owned MCP configuration"
+                    source = "manifest:sharedMcpServer"
+                    desiredDigest = if ($actual.Count -gt 0 -and $actual[0].PSObject.Properties["desiredDigest"]) { $actual[0].desiredDigest } else { Get-CasSha256 -Value (ConvertTo-CasCanonicalJson -InputObject (Get-CasDesiredMcpNode -Manifest $Manifest)) }
+                    reason = if ($status -eq "satisfied") { "CAS-owned client configuration is satisfied." } else { "CAS-owned client configuration is missing or drifted." }
+                })
+            }
+            { $_ -in @("skills", "workspaces") } {
+                $status = if ($actual.Count -gt 0 -and $actual[0].status -eq "synchronized") { "satisfied" } elseif ($actual.Count -gt 0) { $actual[0].status } else { "missing" }
+                if ($status -in @("conflicting", "unsupported")) { throw "$($resource.category.TrimEnd('s')) '$($resource.id)' has $status state and cannot be reconciled safely." }
+                $source = Join-Path (Join-Path (Join-Path $RootPath $Manifest.paths.reposRoot) $resource.definition.repo) $resource.definition.sourceRelativePath
+                $target = Join-Path $ConfigPath $resource.definition.targetRelativePath
+                $null = $operations.Add([ordered]@{
+                    id = "$($resource.category.TrimEnd('s')):$($resource.id)"
+                    kind = "directory"
+                    resourceCategory = $resource.category.TrimEnd("s")
+                    adapter = $resource.definition.adapter
+                    target = $target
+                    risk = if ($status -eq "satisfied") { "low" } else { "medium" }
+                    action = if ($status -eq "satisfied") { "skip" } elseif ($status -eq "drifted") { "update" } else { "create" }
+                    command = "copy allowlisted managed tree"
+                    source = $source
+                    reason = if ($status -eq "satisfied") { "Managed tree is satisfied." } else { "Managed tree is missing." }
+                })
+            }
         }
     }
 
-    $sortedOperations = @($operations.ToArray() | Sort-Object { $_.id })
+    $kindOrder = @{ tool = 0; repository = 1; directory = 2; configuration = 3 }
+    $sortedOperations = @($operations.ToArray() | Sort-Object @{ Expression = { $kindOrder[$_.kind] } }, @{ Expression = { $_.id } })
     $identity = [ordered]@{
         schemaVersion = "1.0.0"
         mode = $Mode
@@ -1244,7 +1551,45 @@ function Invoke-CasPlannedOperation {
         if ($LASTEXITCODE -ne 0) { throw "Repository operation '$($Operation.id)' failed with exit code $LASTEXITCODE." }
         return
     }
+    if ($Operation.kind -eq "configuration" -and $Operation.adapter -eq "json-mcp") {
+        $manifest = Get-CasManifest
+        $clientId = $Operation.id.Substring("client:".Length)
+        $client = $manifest.clients | Where-Object id -eq $clientId | Select-Object -First 1
+        $configPath = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $Operation.target))
+        return Set-CasClientConfiguration -Client $client -ConfigPath $configPath -ApprovedRoots $configPath -Manifest $manifest
+    }
+    if ($Operation.kind -eq "directory" -and $Operation.adapter -eq "tree-copy") {
+        return Copy-CasManagedTree -Source $Operation.source -Target $Operation.target -ApprovedRoots @((Split-Path -Parent $Operation.source), (Split-Path -Parent $Operation.target)) -ReplaceOwned:($Operation.action -eq "update")
+    }
     throw "No executor is registered for operation kind '$($Operation.kind)'."
+}
+
+function Update-CasManagedStateFromOperation {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Plan,
+        [Parameter(Mandatory = $true)][pscustomobject]$Operation,
+        [AllowNull()][object]$Result,
+        [Parameter(Mandatory = $true)][string]$ConfigPath,
+        [Parameter(Mandatory = $true)][string[]]$ApprovedRoots,
+        [pscustomobject]$Manifest = (Get-CasManifest)
+    )
+
+    if ($null -eq $Result -or -not $Result.PSObject.Properties["target"]) { return }
+    $statePath = Get-CasManagedStatePath -ConfigPath $ConfigPath -Manifest $Manifest
+    $state = if (Test-Path -LiteralPath $statePath -PathType Leaf) {
+        Read-CasManagedState -Path $statePath
+    }
+    else {
+        New-CasManagedState -BundleId $Manifest.bundleId -Profile $Plan.profile -DesiredStateDigest $Plan.desiredStateDigest
+    }
+    $state.resources = @($state.resources | Where-Object id -ne $Operation.id)
+    $wasPresent = [bool]$Result.wasPresentBefore
+    $ownership = if ($wasPresent) { "modified" } else { "created" }
+    $kind = if ($Operation.kind -eq "configuration") { "configuration" } else { "directory" }
+    $backupTarget = if ($Result.PSObject.Properties["backupTarget"]) { $Result.backupTarget } else { $null }
+    $contentDigest = if ($Result.PSObject.Properties["contentDigest"]) { $Result.contentDigest } else { $null }
+    $null = Add-CasManagedResource -State $state -Id $Operation.id -Kind $kind -Ownership $ownership -Target $Result.target -WasPresentBefore $wasPresent -BackupTarget $backupTarget -ContentDigest $contentDigest
+    $null = Write-CasManagedState -State $state -Path $statePath -ApprovedRoots $ApprovedRoots
 }
 
 function Invoke-CasOperationPlan {
@@ -1307,7 +1652,8 @@ function Invoke-CasOperationPlan {
             Write-CasOperationJournal -Journal $journal -Path $paths.journal -ApprovedRoots $ApprovedRoots
             $null = Write-CasOperationEvent -Path $paths.events -CorrelationId $journal.correlationId -EventType $operation.id -Outcome "started" -Message "Operation attempt $($entry.attempts) started." -Metadata @{ command = $operation.command; source = $operation.source }
             try {
-                & $OperationHandler $operation
+                $operationResult = & $OperationHandler $operation
+                Update-CasManagedStateFromOperation -Plan $Plan -Operation $operation -Result $operationResult -ConfigPath $ConfigPath -ApprovedRoots $ApprovedRoots -Manifest $Manifest
                 $entry.status = "succeeded"
                 $entry.lastError = $null
                 $entry.guidance = "No recovery action required."
@@ -1426,7 +1772,7 @@ function Invoke-CasWorkstationOperation {
         return Invoke-CasOperationPlan -Plan $failedJournal[0].plan -ConfigPath $ConfigPath -Resume -Manifest $Manifest
     }
     if (-not $Inventory) {
-        $Inventory = Get-CasOperationInventory -Profile $Profile -RootPath $RootPath -Manifest $Manifest
+        $Inventory = Get-CasOperationInventory -Profile $Profile -RootPath $RootPath -ConfigPath $ConfigPath -Manifest $Manifest
     }
     $plan = New-CasOperationPlan -Mode $Mode -Profile $Profile -RootPath $RootPath -ConfigPath $ConfigPath -Manifest $Manifest -Inventory $Inventory
     if (-not $Apply) {

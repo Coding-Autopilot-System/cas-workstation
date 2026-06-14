@@ -69,4 +69,31 @@ Describe "CAS journaled plan apply" {
 
         { Invoke-CasOperationPlan -Plan $tampered -ConfigPath (Join-Path $script:root tampered) -OperationHandler { param($operation) } } | Should -Throw "*integrity*"
     }
+
+    It "applies a typed client operation and records owned-content evidence" {
+        $manifest = Get-CasManifest
+        $config = Join-Path $script:root client-apply
+        $client = $manifest.clients | Where-Object id -eq codex
+        $target = Get-CasClientTarget -Client $client -ConfigPath $config -Manifest $manifest
+        $operation = [pscustomobject]@{
+            id = "client:codex"; kind = "configuration"; resourceCategory = "client"; adapter = "json-mcp"
+            ownershipKey = $client.ownershipKey; target = $target; risk = "medium"; action = "create"
+            command = "merge CAS-owned MCP configuration"; source = "manifest:sharedMcpServer"; reason = "missing"
+            desiredDigest = Get-CasSha256 -Value (ConvertTo-CasCanonicalJson -InputObject (Get-CasDesiredMcpNode -Manifest $manifest))
+        }
+        $plan = [pscustomobject]@{
+            schemaVersion = "1.0.0"; planId = $null; correlationId = $null; mode = "setup"; profile = "core"
+            rootPath = $script:root; configPath = $config; desiredStateDigest = "sha256:$('c' * 64)"; operations = @($operation)
+        }
+        $identity = [ordered]@{ schemaVersion = $plan.schemaVersion; mode = $plan.mode; profile = $plan.profile; rootPath = $plan.rootPath; configPath = $plan.configPath; desiredStateDigest = $plan.desiredStateDigest; operations = $plan.operations }
+        $plan.planId = Get-CasSha256 -Value (ConvertTo-CasCanonicalJson -InputObject $identity)
+        $plan.correlationId = $plan.planId
+
+        $journal = Invoke-CasOperationPlan -Plan $plan -ConfigPath $config -Manifest $manifest
+        $state = Read-CasManagedState -Path (Get-CasManagedStatePath -ConfigPath $config -Manifest $manifest)
+
+        $journal.status | Should -Be "succeeded"
+        $state.resources[0].id | Should -Be "client:codex"
+        $state.resources[0].contentDigest | Should -Be $operation.desiredDigest
+    }
 }

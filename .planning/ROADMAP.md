@@ -11,7 +11,7 @@ CAS Workstation v1 progresses from a functional seed to a trustworthy desired-st
 | 1 | Governance and Quality Foundation | Establish enforceable contracts, test seams, CI, and traceability | GOV-01, GOV-02, GOV-03, GOV-04 | 4 |
 | 2 | Manifest, Inventory, and Safety Boundaries | Make desired state, ownership, paths, and destructive operations fail closed | MAN-01..05, SAFE-01..05 | 10 |
 | 3 | Transactional Plan and Apply Engine | Deliver idempotent setup, upgrade, repair, and recovery | OPS-01..07 | 7 |
-| 4 | Client, Skills, and Workspace Profiles | Safely integrate supported AI clients and portable developer context | CFG-01..05 | 5 |
+| 4 | Client, Skills, and Workspace Profiles | 3/3 | Complete   | 2026-06-14 |
 | 5 | Diagnostics and Supportability | Make readiness, drift, failures, and support evidence actionable | DIAG-01..05 | 5 |
 | 6 | Trusted Release and Clean-Machine Proof | Produce verifiable releases and end-to-end operational evidence | REL-01, REL-02 | 2 |
 | 7 | Public Architecture and Operations Evidence | Complete the documentation and support surface required for adoption | REL-03, REL-04 | 2 |
@@ -54,7 +54,7 @@ CAS Workstation v1 progresses from a functional seed to a trustworthy desired-st
 3. Every operation is correlated and journaled with safe failure, resume, retry, or rollback guidance.
 4. Dirty or diverged repositories and risky external operations fail closed by default.
 
-### Phase 4: Client, Skills, and Workspace Profiles
+### Phase 4: Client, Skills, and Workspace Profiles (Complete: 2026-06-14)
 
 **Goal:** Profiles safely install and maintain the AI-native context developers need without clobbering user configuration.
 

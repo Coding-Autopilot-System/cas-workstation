@@ -89,4 +89,25 @@ Describe "CAS ledger-only uninstall" {
 
         (Get-Content -LiteralPath $target -Raw | ConvertFrom-Json).user | Should -BeTrue
     }
+
+    It "surgically removes client-owned configuration while preserving later user changes" {
+        $manifest = Get-CasManifest
+        $client = $manifest.clients | Where-Object id -eq codex
+        $target = Get-CasClientTarget -Client $client -ConfigPath $script:config -Manifest $manifest
+        New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+        $document = Merge-CasClientConfiguration -ExistingConfiguration ('{"theme":"dark","mcpServers":{"user.server":{"command":"user"}}}' | ConvertFrom-Json) -Client $client -Manifest $manifest
+        $document | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $target
+        $backup = Join-Path $script:config "client.backup.json"
+        '{}' | Set-Content -LiteralPath $backup
+        $null = Add-CasManagedResource -State $script:state -Id "client:codex" -Kind configuration -Ownership modified -Target $target -WasPresentBefore $true -BackupTarget $backup
+        Write-CasManagedState -State $script:state -Path $script:statePath -ApprovedRoots $script:config
+
+        $preview = Get-CasUninstallPreview -StatePath $script:statePath -ApprovedRoots $script:config
+        $preview.actions[0].action | Should -Be "remove-owned-configuration"
+        $null = Invoke-CasUninstall -Preview $preview -ApprovedRoots $script:config -Confirm:$false
+        $updated = Get-Content -LiteralPath $target -Raw | ConvertFrom-Json
+        $updated.theme | Should -Be "dark"
+        $updated.mcpServers.'user.server'.command | Should -Be "user"
+        $updated.mcpServers.PSObject.Properties[$client.ownershipKey] | Should -BeNullOrEmpty
+    }
 }

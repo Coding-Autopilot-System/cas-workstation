@@ -11,7 +11,8 @@
     "allowedInstallerKinds": ["winget", "scoop", "npm", "manual"],
     "allowedCommands": ["git", "gh", "node", "npm", "python", "uv", "dotnet", "docker", "az", "wsl.exe", "codex", "claude", "gemini"],
     "allowedRepositoryPrefixes": ["https://github.com/Coding-Autopilot-System/"],
-    "allowedConfigTargets": ["codex.mcp.json", "claude.settings.fragment.json", "gemini.mcp.json"]
+    "allowedConfigTargets": ["codex.mcp.json", "claude.settings.fragment.json", "gemini.mcp.json"],
+    "allowedAdapters": ["json-mcp", "tree-copy"]
   },
   "profiles": {
     "core": {
@@ -328,32 +329,46 @@
   "clients": [
     {
       "id": "codex",
-      "fileName": "codex.mcp.json"
+      "fileName": "codex.mcp.json",
+      "adapter": "json-mcp",
+      "ownershipKey": "cas-workstation.prompt-refiner"
     },
     {
       "id": "claude",
-      "fileName": "claude.settings.fragment.json"
+      "fileName": "claude.settings.fragment.json",
+      "adapter": "json-mcp",
+      "ownershipKey": "cas-workstation.prompt-refiner"
     },
     {
       "id": "gemini",
-      "fileName": "gemini.mcp.json"
+      "fileName": "gemini.mcp.json",
+      "adapter": "json-mcp",
+      "ownershipKey": "cas-workstation.prompt-refiner"
     }
   ],
   "skills": [
     {
       "id": "prompt-refiner",
-      "repo": "Promptimprover"
+      "repo": "Promptimprover",
+      "sourceRelativePath": "skills\\prompt-refiner",
+      "targetRelativePath": "skills\\prompt-refiner",
+      "adapter": "tree-copy"
     }
   ],
   "workspaces": [
     {
       "id": "cas-default",
-      "relativePath": "workspaces\\default"
+      "repo": "cas-reference-product",
+      "sourceRelativePath": "docs",
+      "targetRelativePath": "workspaces\\default",
+      "adapter": "tree-copy"
     }
   ],
   "sharedMcpServer": {
     "name": "prompt-refiner",
     "transport": "stdio",
+    "scope": "local-workstation",
+    "authReference": null,
     "command": "node",
     "args": [
       "C:\\CodingAutopilotSystem\\repos\\Promptimprover\\dist\\index.js"

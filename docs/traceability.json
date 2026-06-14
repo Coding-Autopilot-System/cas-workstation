@@ -300,72 +300,52 @@
                          {
                              "id":  "CFG-01",
                              "phase":  4,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  ["tests/ClientConfig.Tests.ps1", "tests/Plan.Tests.ps1", "tests/Apply.Tests.ps1"],
+                             "evidence":  [".\\Invoke-Quality.ps1"]
                          },
                          {
                              "id":  "CFG-02",
                              "phase":  4,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  ["tests/ClientConfig.Tests.ps1", "tests/Uninstall.Tests.ps1"],
+                             "evidence":  [".\\Invoke-Quality.ps1"]
                          },
                          {
                              "id":  "CFG-03",
                              "phase":  4,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  ["tests/ManagedTrees.Tests.ps1", "tests/Manifest.Tests.ps1", "tests/Plan.Tests.ps1"],
+                             "evidence":  [".\\Invoke-Quality.ps1"]
                          },
                          {
                              "id":  "CFG-04",
                              "phase":  4,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  ["tests/Manifest.Tests.ps1", "tests/ClientConfig.Tests.ps1"],
+                             "evidence":  [".\\Invoke-Quality.ps1"]
                          },
                          {
                              "id":  "CFG-05",
                              "phase":  4,
-                             "status":  "pending",
+                             "status":  "verified",
                              "adrs":  {
 
                                       },
-                             "tests":  {
-
-                                       },
-                             "evidence":  {
-
-                                          }
+                             "tests":  ["tests/ClientConfig.Tests.ps1", "tests/ManagedTrees.Tests.ps1", "tests/Apply.Tests.ps1"],
+                             "evidence":  [".\\Invoke-Quality.ps1"]
                          },
                          {
                              "id":  "DIAG-01",

@@ -121,3 +121,22 @@ prove a fast-forward relationship.
 
 The `full` profile is the declarative golden path and includes `cas-platform`,
 `cas-contracts`, `cas-evals`, and `cas-reference-product`.
+
+## Client, Skill, And Workspace Profiles
+
+The selected profile also resolves clients, portable skills, and workspace
+conventions into typed preview-first operations. Client adapters manage only
+the namespaced `cas-workstation.prompt-refiner` MCP entry, preserve unrelated
+settings, atomically back up modified files, and record an owned-content digest
+for drift repair.
+
+Skills and workspaces are copied only from manifest-allowlisted repositories
+into approved CAS-managed boundaries. Existing unowned targets, unsafe relative
+paths, reparse points, malformed client files, and conflicting owned namespaces
+fail closed.
+
+The manifest distinguishes local workstation MCP (`stdio`) from production
+remote transports and permits only non-secret authentication references.
+Credentials, tokens, and API keys are never generated or embedded. Uninstall
+removes the CAS-owned MCP namespace surgically instead of restoring a stale
+whole-file backup over later user changes.
