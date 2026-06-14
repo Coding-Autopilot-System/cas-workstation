@@ -29,6 +29,12 @@ Describe "CAS shared operational workflow" {
         }
     }
 
+    It "plans clean setup before selected managed-tree source repositories exist" {
+        $inventory = Get-CasOperationInventory -Profile full -RootPath $script:root -ConfigPath $script:config -Manifest $script:manifest
+        { New-CasOperationPlan -Mode setup -Profile full -RootPath $script:root -ConfigPath $script:config -Inventory $inventory -Manifest $script:manifest } | Should -Not -Throw
+        ($inventory.resources | Where-Object id -eq "skill:prompt-refiner").status | Should -Be "pending-source"
+    }
+
     It "resumes the latest persisted failed plan through the shared workflow" {
         $config = Join-Path $script:root recovery
         $failed = Invoke-CasWorkstationOperation -Mode repair -Profile core -RootPath $script:root -ConfigPath $config -Inventory $script:inventory -Manifest $script:manifest -Apply -OperationHandler { param($operation) throw "synthetic" }

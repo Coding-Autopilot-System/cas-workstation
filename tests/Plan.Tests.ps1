@@ -13,7 +13,10 @@ Describe "CAS deterministic operation planning" {
 
         (ConvertTo-CasCanonicalJson $first) | Should -BeExactly (ConvertTo-CasCanonicalJson $second)
         $first.planId | Should -Match "^sha256:[a-f0-9]{64}$"
-        $first.operations.id | Should -Be ($first.operations.id | Sort-Object)
+        $kinds = @($first.operations.kind)
+        $kinds.IndexOf("repository") | Should -BeGreaterThan $kinds.IndexOf("tool")
+        $kinds.IndexOf("directory") | Should -BeGreaterThan $kinds.IndexOf("repository")
+        $kinds.IndexOf("configuration") | Should -BeGreaterThan $kinds.IndexOf("directory")
     }
 
     It "shows commands sources risks and changes before apply" {
@@ -40,5 +43,13 @@ Describe "CAS deterministic operation planning" {
         $plan = New-CasOperationPlan -Mode upgrade -Profile core -RootPath $script:root -ConfigPath $script:config -Inventory $inventory
 
         ($plan.operations | Where-Object id -eq "repo:autogen").action | Should -Be "update"
+    }
+
+    It "plans selected clients skills and workspaces as typed operations" {
+        $plan = New-CasOperationPlan -Mode setup -Profile full -RootPath $script:root -ConfigPath $script:config -Inventory ([pscustomobject]@{ resources = @() })
+
+        ($plan.operations | Where-Object id -eq "client:codex").kind | Should -Be "configuration"
+        ($plan.operations | Where-Object id -eq "skill:prompt-refiner").adapter | Should -Be "tree-copy"
+        ($plan.operations | Where-Object id -eq "workspace:cas-default").resourceCategory | Should -Be "workspace"
     }
 }

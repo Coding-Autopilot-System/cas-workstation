@@ -40,11 +40,11 @@
 
 ### Client and Workspace Integration
 
-- [ ] **CFG-01**: CAS generates profile-specific configuration for supported AI clients without overwriting unrelated user configuration.
-- [ ] **CFG-02**: User can preview, validate, apply, and remove only CAS-owned client configuration.
-- [ ] **CFG-03**: Profiles install and validate portable agent skills and workspace conventions from allowlisted sources.
-- [ ] **CFG-04**: MCP configuration clearly distinguishes local workstation transports from production remote transports and never embeds secrets.
-- [ ] **CFG-05**: Configuration adapters detect drift and preserve recoverable backups.
+- [x] **CFG-01**: CAS generates profile-specific configuration for supported AI clients without overwriting unrelated user configuration.
+- [x] **CFG-02**: User can preview, validate, apply, and remove only CAS-owned client configuration.
+- [x] **CFG-03**: Profiles install and validate portable agent skills and workspace conventions from allowlisted sources.
+- [x] **CFG-04**: MCP configuration clearly distinguishes local workstation transports from production remote transports and never embeds secrets.
+- [x] **CFG-05**: Configuration adapters detect drift and preserve recoverable backups.
 
 ### Diagnostics and Support
 
@@ -109,11 +109,11 @@
 | OPS-05 | Phase 3 | Complete |
 | OPS-06 | Phase 3 | Complete |
 | OPS-07 | Phase 3 | Complete |
-| CFG-01 | Phase 4 | Pending |
-| CFG-02 | Phase 4 | Pending |
-| CFG-03 | Phase 4 | Pending |
-| CFG-04 | Phase 4 | Pending |
-| CFG-05 | Phase 4 | Pending |
+| CFG-01 | Phase 4 | Complete |
+| CFG-02 | Phase 4 | Complete |
+| CFG-03 | Phase 4 | Complete |
+| CFG-04 | Phase 4 | Complete |
+| CFG-05 | Phase 4 | Complete |
 | DIAG-01 | Phase 5 | Pending |
 | DIAG-02 | Phase 5 | Pending |
 | DIAG-03 | Phase 5 | Pending |

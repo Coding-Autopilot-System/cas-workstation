@@ -31,6 +31,22 @@ Describe "CAS manifest validation and resolution" {
         { Assert-CasManifest -Manifest $manifest } | Should -Throw "*unallowlisted URL*"
     }
 
+    It "rejects unsafe managed-tree sources and secret-like MCP auth values" {
+        $manifest = Get-Content $script:manifestPath -Raw | ConvertFrom-Json
+        $manifest.skills[0].sourceRelativePath = "..\escape"
+        { Assert-CasManifest -Manifest $manifest } | Should -Throw "*unsafe relative path*"
+
+        $manifest = Get-Content $script:manifestPath -Raw | ConvertFrom-Json
+        $manifest.sharedMcpServer.authReference = "Bearer real-token"
+        { Assert-CasManifest -Manifest $manifest } | Should -Throw "*environment reference*"
+    }
+
+    It "keeps local and production MCP transport boundaries explicit" {
+        $manifest = Get-Content $script:manifestPath -Raw | ConvertFrom-Json
+        $manifest.sharedMcpServer.transport = "http"
+        { Assert-CasManifest -Manifest $manifest } | Should -Throw "*Local workstation MCP servers must use stdio*"
+    }
+
     It "resolves every declarative category with explicit requirement level" {
         $resolved = Resolve-CasDesiredState -Profile core
         @($resolved.desiredState.resources.category | Sort-Object -Unique) | Should -Be @("clients", "repos", "services", "skills", "tools", "workspaces")
