@@ -1,5 +1,8 @@
 # CAS Workstation
 
+[![CI](https://github.com/Coding-Autopilot-System/cas-workstation/actions/workflows/ci.yml/badge.svg)](https://github.com/Coding-Autopilot-System/cas-workstation/actions/workflows/ci.yml) [![CodeQL](https://github.com/Coding-Autopilot-System/cas-workstation/actions/workflows/codeql.yml/badge.svg)](https://github.com/Coding-Autopilot-System/cas-workstation/actions/workflows/codeql.yml)
+
+
 CAS Workstation is the opinionated Windows-first bootstrap bundle for the
 Coding-Autopilot-System ecosystem. It provides one install surface for a fully
 configured AI-native coding workstation.
