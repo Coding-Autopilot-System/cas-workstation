@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 
 function Get-CasModuleRoot {
     Split-Path -Parent $PSScriptRoot
@@ -1191,7 +1191,7 @@ function Get-CasTreeDigest {
         return $null
     }
     $entries = @(
-        Get-ChildItem -LiteralPath $root -Recurse -File | Sort-Object FullName | ForEach-Object {
+        Get-ChildItem -LiteralPath $root -Recurse -File -Force | Sort-Object FullName | ForEach-Object {
             $null = Assert-CasSafePath -Path $_.FullName -ApprovedRoots $root
             [ordered]@{
                 path = $_.FullName.Substring($root.Length).TrimStart("\", "/").Replace("\", "/")
@@ -1230,7 +1230,7 @@ function Copy-CasManagedTree {
         Remove-Item -LiteralPath $targetRoot -Recurse -Force
         New-Item -ItemType Directory -Path $targetRoot -Force | Out-Null
     }
-    foreach ($file in Get-ChildItem -LiteralPath $sourceRoot -Recurse -File) {
+    foreach ($file in Get-ChildItem -LiteralPath $sourceRoot -Recurse -File -Force) {
         $null = Assert-CasSafePath -Path $file.FullName -ApprovedRoots $sourceRoot
         $relative = $file.FullName.Substring($sourceRoot.Length).TrimStart("\", "/")
         $destination = Join-Path $targetRoot $relative
