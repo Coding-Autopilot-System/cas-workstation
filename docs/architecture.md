@@ -18,6 +18,8 @@ The typical execution path follows three steps: **Plan**, **Apply**, and **Recor
 
 ### Architecture Diagram
 
+![Visual Diagram](assets/cas_workstation_architecture.png)
+
 ```mermaid
 flowchart TD
     subgraph Input Phase
