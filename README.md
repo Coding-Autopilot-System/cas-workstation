@@ -1,5 +1,8 @@
 # CAS Workstation
 
+![Visual Diagram](docs/assets/concept.png)
+
+
 [![CI](https://github.com/Coding-Autopilot-System/cas-workstation/actions/workflows/ci.yml/badge.svg)](https://github.com/Coding-Autopilot-System/cas-workstation/actions/workflows/ci.yml) [![CodeQL](https://github.com/Coding-Autopilot-System/cas-workstation/actions/workflows/codeql.yml/badge.svg)](https://github.com/Coding-Autopilot-System/cas-workstation/actions/workflows/codeql.yml)
 
 
