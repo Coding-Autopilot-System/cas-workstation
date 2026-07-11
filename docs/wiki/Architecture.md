@@ -1,5 +1,7 @@
 # Architecture
 
+![Architecture Diagram](assets/arch.png)
+
 `cas-workstation` resolves a single declarative contract (`stack.manifest.json`) into a
 normalized desired state, then executes mutations through a preview-first, fail-closed operation
 engine with an atomic journal.
